@@ -13,6 +13,28 @@ function toSlug(title: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/**
+ * Validates any date string or object into a strict W3C ISO 8601 string.
+ * Completely eliminates "Invalid date" Google Search Console errors.
+ */
+function toSafeIsoDate(rawDate?: string | Date | null): string {
+  if (!rawDate) return new Date().toISOString();
+  try {
+    const d = rawDate instanceof Date ? rawDate : new Date(rawDate);
+    if (isNaN(d.getTime())) {
+      return new Date().toISOString();
+    }
+    const year = d.getUTCFullYear();
+    // Guard against malformed years (e.g. 0000 or ancient/extreme dates)
+    if (year < 1900 || year > 2035) {
+      return new Date().toISOString();
+    }
+    return d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 async function getBaseSiteUrl(): Promise<string> {
   let siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -34,19 +56,19 @@ async function getBaseSiteUrl(): Promise<string> {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = await getBaseSiteUrl();
-  const currentDate = new Date();
+  const currentIsoDate = new Date().toISOString();
 
   // 1. Static high-priority pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}`,
-      lastModified: currentDate,
+      lastModified: currentIsoDate,
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
       url: `${siteUrl}/search`,
-      lastModified: currentDate,
+      lastModified: currentIsoDate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
@@ -55,7 +77,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 2. Programmatic Genre Hubs
   const genreEntries: MetadataRoute.Sitemap = Object.entries(GENRE_MAP).map(([_, name]) => ({
     url: `${siteUrl}/genre/${toSlug(name)}`,
-    lastModified: currentDate,
+    lastModified: currentIsoDate,
     changeFrequency: "weekly",
     priority: 0.9,
   }));
@@ -65,7 +87,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, 2020, 2019, 2018];
   const yearEntries: MetadataRoute.Sitemap = years.map((yr) => ({
     url: `${siteUrl}/year/${yr}`,
-    lastModified: currentDate,
+    lastModified: currentIsoDate,
     changeFrequency: "weekly",
     priority: 0.85,
   }));
@@ -92,11 +114,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const path = isTv
         ? `/series/${item.id}${slug ? `-${slug}` : ""}`
         : `/movie/${item.id}${slug ? `-${slug}` : ""}`;
-      const releaseDate = item.release_date || item.first_air_date;
+      const rawDate = item.release_date || item.first_air_date;
 
       mediaMap.set(key, {
         url: `${siteUrl}${path}`,
-        lastModified: releaseDate ? new Date(releaseDate) : currentDate,
+        lastModified: toSafeIsoDate(rawDate),
         changeFrequency: "weekly",
         priority: 0.9,
       });
