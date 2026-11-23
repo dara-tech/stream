@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, User, ArrowLeft, AlertCircle, Loader2, KeyRound, ShieldCheck } from "lucide-react";
+import { Lock, User, ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -49,7 +49,7 @@ export default function AdminLoginPage() {
       if (res.ok && data.success) {
         router.replace("/admin");
       } else {
-        setError(data.message || "Invalid credentials or insufficient permissions");
+        setError(data.message || "Invalid credentials");
       }
     } catch {
       setError("Connection error. Please try again.");
@@ -68,13 +68,10 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-[#0e0e0e] text-neutral-100 flex flex-col justify-between selection:bg-[#E50914] selection:text-white font-sans">
-      {/* Minimal Top Header */}
+      {/* Discreet Header */}
       <header className="px-6 py-5 flex items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-3">
           <span className="text-[#E50914] font-black text-xl tracking-tight uppercase">STREAMFLIX</span>
-          <span className="text-[10px] bg-red-950/70 text-red-400 border border-red-500/30 px-1.5 py-0.5 font-bold uppercase tracking-widest">
-            SUPER ADMIN
-          </span>
         </div>
         <Link
           href="/"
@@ -89,12 +86,12 @@ export default function AdminLoginPage() {
       <main className="flex items-center justify-center p-4">
         <div className="w-full max-w-sm bg-[#141414] border border-white/10 p-6 md:p-8 shadow-2xl relative">
           <div className="mb-6 flex items-center gap-3">
-            <div className="w-9 h-9 bg-neutral-900 border border-white/10 flex items-center justify-center text-[#E50914]">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="w-9 h-9 bg-neutral-900 border border-white/10 flex items-center justify-center text-neutral-300">
+              <User className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-base font-semibold text-white tracking-tight">Super Admin Console</h1>
-              <p className="text-[11px] text-neutral-500">Sign in with administrator credentials</p>
+              <h1 className="text-base font-semibold text-white tracking-tight">Sign In</h1>
+              <p className="text-[11px] text-neutral-400">Enter your credentials to continue</p>
             </div>
           </div>
 
@@ -107,7 +104,7 @@ export default function AdminLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[11px] font-mono text-neutral-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-medium text-neutral-400 mb-1.5">
                 Username or Email
               </label>
               <div className="relative">
@@ -115,16 +112,16 @@ export default function AdminLoginPage() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. darachoel or superadmin"
+                  placeholder="Username or email"
                   autoFocus
-                  className="w-full bg-[#0e0e0e] border border-white/10 px-3 py-2 text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-[#E50914] transition rounded-none font-mono"
+                  className="w-full bg-[#0e0e0e] border border-white/10 px-3 py-2 text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-[#E50914] transition rounded-none font-sans"
                 />
                 <User className="w-3.5 h-3.5 text-neutral-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono text-neutral-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-[11px] font-medium text-neutral-400 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -148,13 +145,10 @@ export default function AdminLoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Authenticating...</span>
+                  <span>Signing in...</span>
                 </>
               ) : (
-                <>
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>Sign In</span>
-                </>
+                <span>Sign In</span>
               )}
             </button>
           </form>
@@ -163,7 +157,7 @@ export default function AdminLoginPage() {
 
       {/* Minimal Footer */}
       <footer className="px-6 py-4 text-center border-t border-white/5">
-        <span className="text-[10px] text-neutral-600 font-mono">STREAMFLIX ADMIN CONSOLE &bull; PROTECTED</span>
+        <span className="text-[10px] text-neutral-600 font-mono">STREAMFLIX &bull; ALL RIGHTS RESERVED</span>
       </footer>
     </div>
   );

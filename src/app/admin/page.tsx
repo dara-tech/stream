@@ -39,6 +39,7 @@ import {
   Trash2,
   ExternalLink,
   ShieldCheck,
+  User,
   Pin,
   PinOff,
   Share2,
@@ -957,16 +958,6 @@ export default function AdminPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {adminUser && (
-            <div className="flex items-center gap-1.5 text-[11px] text-neutral-300 bg-neutral-900 border border-white/10 px-2 py-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#E50914]" />
-              <span className="font-mono text-white font-medium">{adminUser.username}</span>
-              <span className="text-[9px] uppercase px-1 py-0.5 bg-red-950/80 text-red-400 border border-red-500/30 font-bold tracking-wider">
-                {adminUser.role === "super_admin" ? "SUPER ADMIN" : "ADMIN"}
-              </span>
-            </div>
-          )}
-
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-neutral-400 bg-neutral-900 border border-white/10 px-2 py-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <Database className="w-3 h-3 text-emerald-400" />
@@ -977,9 +968,10 @@ export default function AdminPage() {
             onClick={handleSignOut}
             className="flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-white/10 px-2.5 py-1 transition cursor-pointer"
             title="Sign Out"
+            aria-label="Sign Out"
           >
+            <User className="w-3.5 h-3.5 text-neutral-400" />
             <LogOut className="w-3.5 h-3.5 text-red-400" />
-            <span>Sign Out</span>
           </button>
         </div>
       </header>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Menu, X } from "lucide-react";
+import { Search, Menu, X, User } from "lucide-react";
 import { useMovie } from "@/context/movie-context";
 import { cn } from "@/lib/utils";
 
@@ -77,13 +77,14 @@ export function Navbar() {
           <Search className="w-5 h-5 stroke-[2.2]" />
         </button>
 
-        {/* Admin Link */}
+        {/* Account / User Link */}
         <Link
           href="/admin"
-          className="text-xs bg-neutral-900/90 hover:bg-neutral-800 text-neutral-300 hover:text-white px-2.5 py-1 border border-white/10 transition uppercase tracking-wider font-semibold"
-          title="Admin Control Panel"
+          className="p-1.5 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+          title="Account"
+          aria-label="Account"
         >
-          Admin
+          <User className="w-5 h-5 stroke-[2.2]" />
         </Link>
 
         {/* Mobile menu trigger */}
