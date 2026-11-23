@@ -2,18 +2,75 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
 import { MovieModel } from "@/models/Movie";
+import { TMDB_CONFIG } from "@/config/tmdb";
+
+async function syncMoviesFromTMDB(limitPages = 3): Promise<number> {
+  try {
+    const apiKey = TMDB_CONFIG.API_KEY;
+    let inserted = 0;
+    const endpoints = [
+      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=1`,
+      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=2`,
+      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=3`,
+      `https://api.themoviedb.org/3/trending/movie/week?api_key=${apiKey}&page=1`,
+      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=1`,
+    ];
+
+    for (const url of endpoints.slice(0, Math.max(1, limitPages))) {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.results && Array.isArray(data.results)) {
+        for (const m of data.results) {
+          if (!m.title || !m.poster_path) continue;
+          const exists = await MovieModel.findOne({ tmdbId: m.id });
+          if (!exists) {
+            await MovieModel.create({
+              tmdbId: m.id,
+              title: m.title,
+              overview: m.overview || "No overview available",
+              releaseDate: m.release_date ? new Date(m.release_date) : new Date(),
+              posterPath: m.poster_path,
+              backdropPath: m.backdrop_path || "",
+              voteAverage: m.vote_average || 0,
+              voteCount: m.vote_count || 0,
+              isAvailable: true,
+              telegramPostedAt: null,
+            });
+            inserted++;
+          }
+        }
+      }
+    }
+    return inserted;
+  } catch (err) {
+    console.error("Auto-sync TMDB catalog error:", err);
+    return 0;
+  }
+}
 
 export async function GET() {
   try {
     await connectToDatabase();
     const settings = await SiteSettings.findOne().lean();
 
-    const [unpostedCount, postedCount] = await Promise.all([
+    let [unpostedCount, postedCount] = await Promise.all([
       MovieModel.countDocuments({
         $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
       }),
       MovieModel.countDocuments({ telegramPostedAt: { $ne: null } }),
     ]);
+
+    // If MongoDB catalog has 0 movies, automatically seed top-rated movies from TMDB
+    if (unpostedCount === 0 && postedCount === 0) {
+      await syncMoviesFromTMDB(4);
+      [unpostedCount, postedCount] = await Promise.all([
+        MovieModel.countDocuments({
+          $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
+        }),
+        MovieModel.countDocuments({ telegramPostedAt: { $ne: null } }),
+      ]);
+    }
 
     return NextResponse.json({
       success: true,
@@ -166,6 +223,23 @@ export async function POST(req: NextRequest) {
 
       await settings.save();
       return NextResponse.json({ success: true, message: "Social settings saved successfully!" });
+    }
+
+    // 1.1 Sync Catalog from TMDB
+    if (action === "sync_catalog") {
+      const pages = Math.min(10, Math.max(1, Number(body.pages) || 4));
+      const inserted = await syncMoviesFromTMDB(pages);
+      const total = await MovieModel.countDocuments();
+      const unposted = await MovieModel.countDocuments({
+        $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
+      });
+      return NextResponse.json({
+        success: true,
+        message: `Synced ${inserted} new movies from TMDB! Total catalog: ${total} (${unposted} queued to post)`,
+        total,
+        unposted,
+        inserted,
+      });
     }
 
     // 2. Test Single Channel
@@ -412,10 +486,20 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // If still no movie found, auto-sync more movies from TMDB!
+      if (!nextMovie) {
+        await syncMoviesFromTMDB(4);
+        nextMovie = await MovieModel.findOne(query).sort({
+          voteAverage: -1,
+          voteCount: -1,
+          popularity: -1,
+        });
+      }
+
       if (!nextMovie) {
         return NextResponse.json({
           success: false,
-          message: "All movies in the catalog have already been posted!",
+          message: "All movies in the catalog have already been posted! Please sync more movies from TMDB.",
         });
       }
 

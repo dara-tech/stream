@@ -212,6 +212,7 @@ export default function AdminPage() {
   const [savingSocial, setSavingSocial] = useState(false);
   const [testingChannel, setTestingChannel] = useState<string | null>(null);
   const [broadcastingNext, setBroadcastingNext] = useState(false);
+  const [syncingCatalog, setSyncingCatalog] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<Record<string, { success: boolean; message: string }> | null>(null);
 
   // Auto-Post Scheduler & Rating Filter
@@ -875,6 +876,29 @@ export default function AdminPage() {
       showNotification("error", e.message || "Network error");
     } finally {
       setBroadcastingNext(false);
+    }
+  };
+
+  const handleSyncCatalog = async () => {
+    setSyncingCatalog(true);
+    try {
+      const res = await fetch("/api/admin/autopost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_catalog", pages: 5 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification("success", data.message || "TMDB catalog synced successfully!");
+        fetchSocial();
+        fetchOverview();
+      } else {
+        showNotification("error", data.message || "Failed to sync catalog");
+      }
+    } catch (e: any) {
+      showNotification("error", e.message || "Network error syncing catalog");
+    } finally {
+      setSyncingCatalog(false);
     }
   };
 
@@ -2338,6 +2362,14 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={handleSyncCatalog}
+                    disabled={syncingCatalog}
+                    className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-2.5 py-1.5 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {syncingCatalog ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                    <span>{syncingCatalog ? "Syncing..." : "Sync TMDB Catalog"}</span>
+                  </button>
+                  <button
                     onClick={handleBroadcastNext}
                     disabled={broadcastingNext}
                     className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 transition cursor-pointer disabled:opacity-50"
@@ -2360,7 +2392,7 @@ export default function AdminPage() {
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
                   <span className="text-neutral-400 text-[11px]">Catalog</span>
                   <div className="text-xl font-bold font-mono text-white">
-                    {socialStats.totalMovies?.toLocaleString() || "59,460"}
+                    {(socialStats.totalMovies ?? 0).toLocaleString()}
                   </div>
                   <span className="text-[10px] text-neutral-500 font-mono">In MongoDB</span>
                 </div>
@@ -2368,7 +2400,7 @@ export default function AdminPage() {
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
                   <span className="text-neutral-400 text-[11px]">Unposted</span>
                   <div className="text-xl font-bold font-mono text-amber-400">
-                    {socialStats.unpostedMovies?.toLocaleString() || "59,425"}
+                    {(socialStats.unpostedMovies ?? 0).toLocaleString()}
                   </div>
                   <span className="text-[10px] text-neutral-500 font-mono">Queued</span>
                 </div>
@@ -2376,7 +2408,7 @@ export default function AdminPage() {
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
                   <span className="text-neutral-400 text-[11px]">Posted</span>
                   <div className="text-xl font-bold font-mono text-emerald-400">
-                    {socialStats.postedMovies?.toLocaleString() || "35"}
+                    {(socialStats.postedMovies ?? 0).toLocaleString()}
                   </div>
                   <span className="text-[10px] text-neutral-500 font-mono">Broadcasted</span>
                 </div>
@@ -2540,6 +2572,15 @@ export default function AdminPage() {
                     Target site stream link: <span className="font-mono text-neutral-300">{socialSiteUrl || "https://streamhd.to"}/movie/[id]</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSyncCatalog}
+                      disabled={syncingCatalog}
+                      className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-white/20 text-neutral-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {syncingCatalog ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                      <span>{syncingCatalog ? "Syncing..." : "Sync Catalog"}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleBroadcastNext}
