@@ -892,7 +892,8 @@ export default function AdminPage() {
       return;
     }
 
-    setNextPostCountdown((prev) => (prev === null ? autoPostConfig.intervalMinutes * 60 : prev));
+    // Immediately apply new interval in minutes
+    setNextPostCountdown(autoPostConfig.intervalMinutes * 60);
 
     const timer = setInterval(() => {
       setNextPostCountdown((prev) => {
@@ -2487,6 +2488,18 @@ export default function AdminPage() {
                         </button>
                       ))}
                     </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-mono">
+                      <span className="text-neutral-400">Next Auto-Post:</span>
+                      {autoPostConfig.enabled && nextPostCountdown !== null ? (
+                        <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          {Math.floor(nextPostCountdown / 60).toString().padStart(2, "0")}:
+                          {(nextPostCountdown % 60).toString().padStart(2, "0")}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-500">Scheduler Paused</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* 3. Rating & Quality Filter */}
@@ -2496,7 +2509,7 @@ export default function AdminPage() {
                       <span className="text-[10px] font-mono text-amber-400">★ TMDB Score</span>
                     </div>
                     <select
-                      value={autoPostConfig.postOnlyTopRated ? autoPostConfig.minRating.toString() : "0"}
+                      value={autoPostConfig.postOnlyTopRated ? Number(autoPostConfig.minRating).toFixed(1) : "0"}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value);
                         if (val === 0) {
@@ -2516,7 +2529,7 @@ export default function AdminPage() {
                     </select>
                     <p className="text-[10px] font-mono text-neutral-500 leading-tight">
                       {autoPostConfig.postOnlyTopRated
-                        ? `✓ Strict Filter: Only selects movies with rating ≥ ${autoPostConfig.minRating}, ordered by score & votes.`
+                        ? `✓ Strict Filter: Only selects movies with rating ≥ ${Number(autoPostConfig.minRating).toFixed(1)}, ordered by score & votes.`
                         : "Unrestricted: Posts any unposted title regardless of rating."}
                     </p>
                   </div>
@@ -2527,6 +2540,15 @@ export default function AdminPage() {
                     Target site stream link: <span className="font-mono text-neutral-300">{socialSiteUrl || "https://streamhd.to"}/movie/[id]</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleBroadcastNext}
+                      disabled={broadcastingNext}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
+                    >
+                      {broadcastingNext ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                      <span>{broadcastingNext ? "Broadcasting..." : "⚡ Test Post 1 Movie Now"}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={handleSaveSocialSettings}
