@@ -115,8 +115,11 @@ export async function POST(req: NextRequest) {
     }
 
     const token = createSessionToken(authUser);
+    const proto = req.headers.get("x-forwarded-proto") || (req.url.startsWith("https") ? "https" : "http");
+    const isHttps = proto === "https";
+
     try {
-      await setAdminSessionCookie(token);
+      await setAdminSessionCookie(token, isHttps);
     } catch (cookieErr) {
       console.warn("setAdminSessionCookie warning:", cookieErr);
     }
@@ -126,9 +129,10 @@ export async function POST(req: NextRequest) {
       user: authUser,
     });
     response.cookies.set({
-      ...getAdminCookieOptions(),
+      ...getAdminCookieOptions(isHttps),
       value: token,
     });
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
 
     return response;
   } catch (error: any) {
@@ -156,10 +160,12 @@ export async function GET(req: NextRequest) {
     const authenticated = verifySessionToken(token);
     const user = authenticated ? getSessionPayload(token) : null;
 
-    return NextResponse.json({ authenticated, user });
+    const response = NextResponse.json({ authenticated, user });
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    return response;
   } catch (error: any) {
     console.error("Admin auth GET error:", error);
-    return NextResponse.json({ authenticated: false, user: null });
+    return NextResponse.json({ authenticated: false, user: null }, { headers: { "Cache-Control": "no-store" } });
   }
 }
 

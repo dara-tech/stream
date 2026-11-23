@@ -16,10 +16,10 @@ export default function AdminLoginPage() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const res = await fetch("/api/admin/auth");
+        const res = await fetch("/api/admin/auth", { cache: "no-store" });
         const data = await res.json();
         if (data.authenticated) {
-          router.replace("/admin");
+          window.location.href = "/admin";
           return;
         }
       } catch (err) {
@@ -29,7 +29,7 @@ export default function AdminLoginPage() {
       }
     }
     checkAuth();
-  }, [router]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +47,7 @@ export default function AdminLoginPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        router.replace("/admin");
+        window.location.href = "/admin";
       } else {
         setError(data.message || "Invalid credentials");
       }

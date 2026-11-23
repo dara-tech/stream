@@ -306,10 +306,10 @@ export default function AdminPage() {
   useEffect(() => {
     async function verifyAuth() {
       try {
-        const res = await fetch("/api/admin/auth");
+        const res = await fetch("/api/admin/auth", { cache: "no-store" });
         const data = await res.json();
         if (!data.authenticated) {
-          router.replace("/admin/login");
+          window.location.href = "/admin/login";
           return;
         }
         if (data.user) {
@@ -317,11 +317,11 @@ export default function AdminPage() {
         }
         setCheckingAuth(false);
       } catch {
-        router.replace("/admin/login");
+        window.location.href = "/admin/login";
       }
     }
     verifyAuth();
-  }, [router]);
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -329,7 +329,7 @@ export default function AdminPage() {
     } catch {
       // Ignore
     }
-    router.replace("/admin/login");
+    window.location.href = "/admin/login";
   };
 
   // 1. Fetch Overview

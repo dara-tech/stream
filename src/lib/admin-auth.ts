@@ -114,11 +114,12 @@ export function getSessionPayload(token?: string | null): { username: string; ro
 /**
  * Cookie options helper for admin session
  */
-export function getAdminCookieOptions() {
+export function getAdminCookieOptions(isHttps: boolean = false) {
+  const isSecure = isHttps || process.env.COOKIE_SECURE === "true";
   return {
     name: ADMIN_COOKIE_NAME,
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     sameSite: "lax" as const,
     path: "/",
     maxAge: SESSION_MAX_AGE,
@@ -133,12 +134,13 @@ export async function getAdminSessionCookie(): Promise<string | undefined> {
   return cookieStore.get(ADMIN_COOKIE_NAME)?.value;
 }
 
-export async function setAdminSessionCookie(token?: string): Promise<string> {
+export async function setAdminSessionCookie(token?: string, isHttps: boolean = false): Promise<string> {
   const sessionToken = token || createSessionToken();
   const cookieStore = await cookies();
+  const isSecure = isHttps || process.env.COOKIE_SECURE === "true";
   cookieStore.set(ADMIN_COOKIE_NAME, sessionToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecure,
     sameSite: "lax",
     path: "/",
     maxAge: SESSION_MAX_AGE,
