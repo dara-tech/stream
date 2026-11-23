@@ -152,6 +152,7 @@ export default function AdminPage() {
 
   // Auth Guard State
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [adminUser, setAdminUser] = useState<{ username: string; role: string; email?: string } | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "media" | "activity" | "streaming" | "social" | "autopost" | "seo">("overview");
 
   // Collapsible Sidebar Rail (matching Media project)
@@ -309,6 +310,9 @@ export default function AdminPage() {
         if (!data.authenticated) {
           router.replace("/admin/login");
           return;
+        }
+        if (data.user) {
+          setAdminUser(data.user);
         }
         setCheckingAuth(false);
       } catch {
@@ -953,6 +957,16 @@ export default function AdminPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {adminUser && (
+            <div className="flex items-center gap-1.5 text-[11px] text-neutral-300 bg-neutral-900 border border-white/10 px-2 py-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#E50914]" />
+              <span className="font-mono text-white font-medium">{adminUser.username}</span>
+              <span className="text-[9px] uppercase px-1 py-0.5 bg-red-950/80 text-red-400 border border-red-500/30 font-bold tracking-wider">
+                {adminUser.role === "super_admin" ? "SUPER ADMIN" : "ADMIN"}
+              </span>
+            </div>
+          )}
+
           <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-neutral-400 bg-neutral-900 border border-white/10 px-2 py-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <Database className="w-3 h-3 text-emerald-400" />

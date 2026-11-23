@@ -37,10 +37,12 @@ export function verifyPassword(password: string): boolean {
 /**
  * Generate a cryptographically signed session token
  */
-export function createSessionToken(): string {
+export function createSessionToken(user?: { username?: string; role?: string; email?: string }): string {
   const expiresAt = Date.now() + SESSION_MAX_AGE * 1000;
   const payload = JSON.stringify({
-    role: "admin",
+    role: user?.role || "super_admin",
+    username: user?.username || "superadmin",
+    email: user?.email || "",
     exp: expiresAt,
     nonce: crypto.randomBytes(16).toString("hex"),
   });
@@ -81,12 +83,23 @@ export function verifySessionToken(token?: string | null): boolean {
     const payloadStr = Buffer.from(encodedPayload, "base64url").toString("utf-8");
     const payload = JSON.parse(payloadStr);
 
-    if (payload.role !== "admin") return false;
+    if (payload.role !== "admin" && payload.role !== "super_admin") return false;
     if (typeof payload.exp !== "number" || Date.now() > payload.exp) return false;
 
     return true;
   } catch {
     return false;
+  }
+}
+
+export function getSessionPayload(token?: string | null): { username: string; role: string; email?: string } | null {
+  if (!token || !verifySessionToken(token)) return null;
+  try {
+    const encodedPayload = token.split(".")[0];
+    const payloadStr = Buffer.from(encodedPayload, "base64url").toString("utf-8");
+    return JSON.parse(payloadStr);
+  } catch {
+    return null;
   }
 }
 
