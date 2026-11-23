@@ -6,7 +6,11 @@ import { SiteSettings } from "@/models/SiteSettings";
 export const revalidate = 3600; // Cache and revalidate sitemap once per hour
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://moviestream.cc";
+  let siteUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+    "https://streamhd.to"
+  ).replace(/\/+$/, "");
 
   try {
     await connectToDatabase();

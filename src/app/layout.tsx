@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { MovieProvider } from "@/context/movie-context";
 import { MovieModal } from "@/components/movies/movie-modal";
@@ -6,7 +7,11 @@ import { VideoPlayerModal } from "@/components/movies/video-player-modal";
 import { StreamPlayerModal } from "@/components/movies/stream-player-modal";
 import { SearchOverlay } from "@/components/movies/search-overlay";
 
-const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://moviestream.cc").replace(/\/+$/, "");
+const siteUrl = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
+  "https://streamhd.to"
+).replace(/\/+$/, "");
 
 export const viewport: Viewport = {
   themeColor: "#E50914",
@@ -118,6 +123,13 @@ export default function RootLayout({
           <VideoPlayerModal />
           <SearchOverlay />
         </MovieProvider>
+        <Script
+          id="al5sm-ad-tag"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(s){s.dataset.zone='12330101',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`
+          }}
+        />
       </body>
     </html>
   );
