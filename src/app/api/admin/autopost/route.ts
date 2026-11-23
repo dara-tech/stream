@@ -407,7 +407,7 @@ export async function POST(req: NextRequest) {
       // 3.1 Telegram Broadcast
       if (settings.telegram?.enabled && settings.telegram?.botToken && settings.telegram?.chatId) {
         try {
-          const caption = `🎬 *${movie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${movie.overview?.slice(0, 300)}...\n\n🍿 *Watch Online Free:* [Click Here to Stream](${streamLink})\n\n#Movie #${movie.title.replace(/[^\w]/g, "")}`;
+          const caption = `🎬 *${movie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${movie.overview?.slice(0, 300)}...\n\n🍿 *Watch on StreamHD:* [Click to Stream](${streamLink})\n\n#Movie #${movie.title.replace(/[^\w]/g, "")}`;
           const res = await fetch(`https://api.telegram.org/bot${settings.telegram.botToken}/sendPhoto`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
           });
           const session = await sessionRes.json();
           if (sessionRes.ok && session.accessJwt && session.did) {
-            const bskyPostText = `🎬 Now Streaming: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 180)}...\n\n🍿 Watch: ${streamLink}`;
+            const bskyPostText = `🎬 Featured Cinema: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 180)}...\n\n🍿 Stream: ${streamLink}`;
             const recordRes = await fetch(`${bskyUrl}/xrpc/com.atproto.repo.createRecord`, {
               method: "POST",
               headers: {
@@ -480,7 +480,7 @@ export async function POST(req: NextRequest) {
       // 3.3 Facebook Page Broadcast
       if (settings.facebook?.enabled && settings.facebook?.pageAccessToken && settings.facebook?.pageId) {
         try {
-          const fbMessage = `🎬 Stream Now: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Watch Online Free: ${streamLink}`;
+          const fbMessage = `🎬 Cinema Spotlight: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Stream in HD: ${streamLink}`;
           const fbRes = await fetch(`https://graph.facebook.com/v19.0/${settings.facebook.pageId}/feed`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },

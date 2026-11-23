@@ -3158,25 +3158,25 @@ export default function AdminPage() {
                         <span className="text-[10px] font-mono text-neutral-500">For manual or automated posting</span>
                       </div>
                       <div className="p-2.5 bg-black/60 border border-white/10 font-mono text-[11px] text-neutral-300 space-y-1.5">
-                        <div className="text-white font-bold">🎬 Title: StreamHD - Watch Movies Online Free</div>
+                        <div className="text-white font-bold">🎬 Title: Movie Title (Year)</div>
                         <div className="text-neutral-400 text-[10px]">
-                          &lt;p&gt;&lt;strong&gt;🍿 Stream Now:&lt;/strong&gt; &lt;a href="https://streamhd.to/movie/1560520" target="_blank"&gt;Batman: Knightfall (2026)&lt;/a&gt;&lt;/p&gt;<br />
-                          &lt;p&gt;Watch the full movie in HD on StreamHD platform.&lt;/p&gt;
+                          &lt;p&gt;&lt;strong&gt;🍿 Stream on StreamHD:&lt;/strong&gt; &lt;a href="https://www.streamhd.to/movie/1560520" target="_blank"&gt;Batman: Knightfall (2026)&lt;/a&gt;&lt;/p&gt;<br />
+                          &lt;p&gt;Watch in full HD on StreamHD cinema platform.&lt;/p&gt;
                         </div>
-                        <div className="text-[10px] text-indigo-400">#movies #streaming #streamhd #cinema #hd</div>
+                        <div className="text-[10px] text-indigo-400">#movies #cinema #film #watchlist #streamhd</div>
                       </div>
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           type="button"
                           onClick={() => {
                             if (navigator.clipboard) {
-                              navigator.clipboard.writeText('<p><strong>🍿 Stream Now:</strong> <a href="https://streamhd.to" target="_blank">Watch Movies Online Free on StreamHD</a></p>');
+                              navigator.clipboard.writeText('<p><strong>🍿 Stream:</strong> <a href="https://www.streamhd.to" target="_blank">Watch on StreamHD</a></p>');
                               showNotification("success", "HTML Draft copied to clipboard!");
                             }
                           }}
                           className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white text-[11px] font-mono transition cursor-pointer"
                         >
-                          📋 Copy HTML Draft
+                          📋 Copy HTML Template
                         </button>
                         <a
                           href={`https://www.tumblr.com/${tumblrBlog || "fanmovie"}`}

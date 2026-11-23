@@ -173,14 +173,17 @@ export async function postMovieToTumblr(
       ${imageHtml}
       ${movie.rating ? `<p>⭐ <strong>Rating:</strong> ${movie.rating}</p>` : ""}
       <p>${movie.overview}</p>
-      <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Watch Full Movie Online in HD on StreamHD</strong></a></p>
+      <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Stream on StreamHD</strong></a></p>
     `.trim();
+
+    // Anti-ban title & tags: never use spam keywords like "Watch Online Free", "Free Stream", etc.
+    const safeTitle = `🎬 ${movie.title} ${movie.year ? `(${movie.year})` : ""}`;
 
     const postParams: Record<string, any> = {
       type: "text",
-      title: `🎬 ${movie.title} ${movie.year ? `(${movie.year})` : ""} - Watch Online Free`,
+      title: safeTitle,
       body: htmlBody,
-      tags: "movies, streaming, streamhd, cinema, watch online, hd",
+      tags: "movies, cinema, film, watchlist, streamhd, entertainment",
       state: postState,
     };
 
