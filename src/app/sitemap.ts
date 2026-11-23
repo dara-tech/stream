@@ -3,6 +3,8 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { MovieModel } from "@/models/Movie";
 import { SiteSettings } from "@/models/SiteSettings";
 
+export const revalidate = 3600; // Cache and revalidate sitemap once per hour
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://moviestream.cc";
 
@@ -12,8 +14,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (settings?.seo?.siteUrl) {
       siteUrl = settings.seo.siteUrl.replace(/\/+$/, "");
     }
-  } catch (e) {
-    console.error("Sitemap site settings fetch error:", e);
+  } catch (e: any) {
+    console.warn("Sitemap: site settings notice (using fallback URL):", e?.message || e);
   }
 
   const currentDate = new Date();
@@ -73,8 +75,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
       };
     });
-  } catch (err) {
-    console.error("Error generating dynamic movie sitemap:", err);
+  } catch (err: any) {
+    console.warn("Sitemap: movie catalog routes notice (serving static routes):", err?.message || err);
   }
 
   return [...staticPages, ...movieRoutes];
