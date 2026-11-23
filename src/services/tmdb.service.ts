@@ -87,6 +87,19 @@ export const tmdbService = {
     return data.results.filter((item) => item.backdrop_path);
   },
 
+  // Movies by release year
+  async getMoviesByYear(year: number): Promise<Movie[]> {
+    try {
+      const data = await fetchTMDB<TMDBResponse<Movie>>("/discover/movie", {
+        primary_release_year: year.toString(),
+        sort_by: "popularity.desc",
+      });
+      return data.results.filter((item) => item.backdrop_path || item.poster_path);
+    } catch {
+      return [];
+    }
+  },
+
   // Full Details including videos, credits, similar
   async getDetails(id: number, type: "movie" | "tv" = "movie"): Promise<MovieDetails | null> {
     try {
