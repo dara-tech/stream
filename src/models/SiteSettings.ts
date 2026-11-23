@@ -27,6 +27,14 @@ export interface ISiteSettings extends Document {
     headerScript?: string;
     updatedAt?: Date;
   };
+  autoPost?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    minRating?: number;
+    postOnlyTopRated?: boolean;
+    lastPostedAt?: Date;
+    updatedAt?: Date;
+  };
   streaming?: {
     defaultServerId?: string;
     disabledServerIds?: string[];
@@ -109,6 +117,14 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
       zoneId: { type: String, default: "12330101" },
       scriptUrl: { type: String, default: "https://al5sm.com/tag.min.js" },
       headerScript: { type: String, default: "" },
+      updatedAt: { type: Date, default: Date.now },
+    },
+    autoPost: {
+      enabled: { type: Boolean, default: false },
+      intervalMinutes: { type: Number, default: 30 },
+      minRating: { type: Number, default: 7.0 },
+      postOnlyTopRated: { type: Boolean, default: true },
+      lastPostedAt: { type: Date },
       updatedAt: { type: Date, default: Date.now },
     },
     streaming: {

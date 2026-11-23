@@ -207,12 +207,21 @@ export default function AdminPage() {
   const [showTumblrSecret, setShowTumblrSecret] = useState(false);
 
   // General Social States
-  const [socialSiteUrl, setSocialSiteUrl] = useState("http://localhost:3000");
+  const [socialSiteUrl, setSocialSiteUrl] = useState("https://streamhd.to");
   const [socialStats, setSocialStats] = useState({ unpostedMovies: 0, postedMovies: 0, totalMovies: 0 });
   const [savingSocial, setSavingSocial] = useState(false);
   const [testingChannel, setTestingChannel] = useState<string | null>(null);
   const [broadcastingNext, setBroadcastingNext] = useState(false);
   const [broadcastResults, setBroadcastResults] = useState<Record<string, { success: boolean; message: string }> | null>(null);
+
+  // Auto-Post Scheduler & Rating Filter
+  const [autoPostConfig, setAutoPostConfig] = useState({
+    enabled: false,
+    intervalMinutes: 30,
+    minRating: 7.0,
+    postOnlyTopRated: true,
+  });
+  const [nextPostCountdown, setNextPostCountdown] = useState<number | null>(null);
 
   // Notification Banner
   const [actionNotice, setActionNotice] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -437,7 +446,7 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/autopost");
       const json = await res.json();
       if (json.success && json.data) {
-        const { telegram, bluesky, reddit, facebook, tumblr, stats } = json.data;
+        const { telegram, bluesky, reddit, facebook, tumblr, autoPost, stats } = json.data;
         if (telegram) {
           setTgBotToken(telegram.botToken || "8558209379:AAE8qiLXd9vu-DCp-sMP1j22kob5-0q_0lw");
           setTgChatId(telegram.chatId || "-1003606758795");
@@ -471,6 +480,14 @@ export default function AdminPage() {
           setTumblrTokenSecret(tumblr.tokenSecret || "");
           setTumblrBlog(tumblr.blogIdentifier || "");
           setTumblrEnabled(Boolean(tumblr.enabled));
+        }
+        if (autoPost) {
+          setAutoPostConfig({
+            enabled: Boolean(autoPost.enabled),
+            intervalMinutes: autoPost.intervalMinutes || 30,
+            minRating: autoPost.minRating ?? 7.0,
+            postOnlyTopRated: autoPost.postOnlyTopRated ?? true,
+          });
         }
         if (stats) {
           setSocialStats(stats);
@@ -776,6 +793,7 @@ export default function AdminPage() {
             blogIdentifier: tumblrBlog,
             enabled: tumblrEnabled,
           },
+          autoPost: autoPostConfig,
           siteUrl: socialSiteUrl,
         }),
       });
@@ -863,6 +881,31 @@ export default function AdminPage() {
   const handleSaveTelegram = handleSaveSocialSettings;
   const handleTestTelegramBot = () => handleTestChannel("telegram");
   const handlePostNextMovie = handleBroadcastNext;
+
+  // Auto-Publish Countdown & Auto-Trigger Timer
+  const broadcastRef = React.useRef(handleBroadcastNext);
+  broadcastRef.current = handleBroadcastNext;
+
+  useEffect(() => {
+    if (!autoPostConfig.enabled) {
+      setNextPostCountdown(null);
+      return;
+    }
+
+    setNextPostCountdown((prev) => (prev === null ? autoPostConfig.intervalMinutes * 60 : prev));
+
+    const timer = setInterval(() => {
+      setNextPostCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          broadcastRef.current();
+          return autoPostConfig.intervalMinutes * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoPostConfig.enabled, autoPostConfig.intervalMinutes]);
 
   // SEO & Search Console Handlers
   const handleSaveSeo = async (e?: React.FormEvent) => {
@@ -2343,6 +2386,157 @@ export default function AdminPage() {
                     {[tgEnabled, bskyEnabled, redditEnabled, fbEnabled, tumblrEnabled].filter(Boolean).length} / 5
                   </div>
                   <span className="text-[10px] text-neutral-500 font-mono">Connected</span>
+                </div>
+              </div>
+
+              {/* Auto-Publish Scheduler & Rating Filter */}
+              <div className="p-4 bg-[#141414] border border-white/10 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[#E50914]" />
+                      <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Auto-Publish Scheduler & Top-Rated Filter
+                      </h3>
+                      {autoPostConfig.enabled ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          ACTIVE
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono bg-neutral-800 text-neutral-400 border border-neutral-700">
+                          PAUSED
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-neutral-400">
+                      Configure automated multi-channel broadcasts. Filter strictly for top-rated movies and set your broadcast frequency.
+                    </p>
+                  </div>
+
+                  {autoPostConfig.enabled && nextPostCountdown !== null && (
+                    <div className="flex items-center gap-2 bg-black/60 border border-emerald-500/30 px-3 py-1.5 font-mono text-xs text-emerald-400">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                      <span>Next broadcast in:</span>
+                      <span className="font-bold text-white text-sm">
+                        {Math.floor(nextPostCountdown / 60).toString().padStart(2, "0")}:
+                        {(nextPostCountdown % 60).toString().padStart(2, "0")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  {/* 1. Scheduler Switch */}
+                  <div className="p-3 bg-neutral-900/60 border border-white/5 flex flex-col justify-between space-y-3">
+                    <div>
+                      <span className="text-xs font-semibold text-white block">Auto-Scheduler Status</span>
+                      <span className="text-[11px] text-neutral-400 block mt-0.5">
+                        Trigger automatic multi-channel posting in the background
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={autoPostConfig.enabled}
+                          onChange={(e) => setAutoPostConfig({ ...autoPostConfig, enabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                      <span className={`text-xs font-mono font-medium ${autoPostConfig.enabled ? "text-emerald-400" : "text-neutral-500"}`}>
+                        {autoPostConfig.enabled ? "Auto-Posting Enabled" : "Disabled"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. Frequency / Interval (Minutes) */}
+                  <div className="p-3 bg-neutral-900/60 border border-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-white">Posting Interval</span>
+                      <span className="text-[10px] font-mono text-neutral-400">Minutes between posts</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={autoPostConfig.intervalMinutes}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          setAutoPostConfig({ ...autoPostConfig, intervalMinutes: val });
+                        }}
+                        className="w-24 bg-black border border-white/20 px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#E50914]"
+                      />
+                      <span className="text-xs text-neutral-400 font-mono">minutes</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {[5, 15, 30, 60, 120].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setAutoPostConfig({ ...autoPostConfig, intervalMinutes: mins })}
+                          className={`px-2 py-0.5 text-[10px] font-mono border transition cursor-pointer ${
+                            autoPostConfig.intervalMinutes === mins
+                              ? "bg-[#E50914] border-red-500 text-white font-bold"
+                              : "bg-neutral-800 border-white/10 text-neutral-400 hover:text-white"
+                          }`}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Rating & Quality Filter */}
+                  <div className="p-3 bg-neutral-900/60 border border-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-white">Quality / Rating Filter</span>
+                      <span className="text-[10px] font-mono text-amber-400">★ TMDB Score</span>
+                    </div>
+                    <select
+                      value={autoPostConfig.postOnlyTopRated ? autoPostConfig.minRating.toString() : "0"}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (val === 0) {
+                          setAutoPostConfig({ ...autoPostConfig, postOnlyTopRated: false, minRating: 0 });
+                        } else {
+                          setAutoPostConfig({ ...autoPostConfig, postOnlyTopRated: true, minRating: val });
+                        }
+                      }}
+                      className="w-full bg-black border border-white/20 px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-[#E50914]"
+                    >
+                      <option value="8.0">★ 8.0+ (Must-Watch Masterpieces)</option>
+                      <option value="7.5">★ 7.5+ (Critically Acclaimed)</option>
+                      <option value="7.0">★ 7.0+ (Top-Rated Only - Default)</option>
+                      <option value="6.5">★ 6.5+ (Good & Popular)</option>
+                      <option value="6.0">★ 6.0+ (Above Average)</option>
+                      <option value="0">All Ratings (Unrestricted)</option>
+                    </select>
+                    <p className="text-[10px] font-mono text-neutral-500 leading-tight">
+                      {autoPostConfig.postOnlyTopRated
+                        ? `✓ Strict Filter: Only selects movies with rating ≥ ${autoPostConfig.minRating}, ordered by score & votes.`
+                        : "Unrestricted: Posts any unposted title regardless of rating."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/5">
+                  <div className="text-[11px] text-neutral-500">
+                    Target site stream link: <span className="font-mono text-neutral-300">{socialSiteUrl || "https://streamhd.to"}/movie/[id]</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveSocialSettings}
+                      disabled={savingSocial}
+                      className="px-3.5 py-1.5 bg-[#E50914] hover:bg-[#b80710] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {savingSocial ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      <span>Save Scheduler Settings</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

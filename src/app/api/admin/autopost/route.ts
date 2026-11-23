@@ -22,7 +22,7 @@ export async function GET() {
           botToken: "",
           chatId: "",
           enabled: false,
-          siteUrl: "https://moviestream.cc",
+          siteUrl: "https://streamhd.to",
         },
         bluesky: settings?.bluesky || {
           identifier: "",
@@ -56,6 +56,13 @@ export async function GET() {
           postedMovies: postedCount,
           totalMovies: unpostedCount + postedCount,
         },
+        autoPost: settings?.autoPost || {
+          enabled: false,
+          intervalMinutes: 30,
+          minRating: 7.0,
+          postOnlyTopRated: true,
+          lastPostedAt: null,
+        },
       },
     });
   } catch (error: any) {
@@ -76,6 +83,17 @@ export async function POST(req: NextRequest) {
 
     // 1. Save Settings (All Social Platforms)
     if (action === "save_settings" || action === "save_social_settings") {
+      if (body.autoPost) {
+        settings.autoPost = {
+          ...settings.autoPost,
+          enabled: Boolean(body.autoPost.enabled),
+          intervalMinutes: Math.max(1, Number(body.autoPost.intervalMinutes) || 30),
+          minRating: Number(body.autoPost.minRating) || 7.0,
+          postOnlyTopRated: Boolean(body.autoPost.postOnlyTopRated),
+          updatedAt: new Date(),
+        };
+      }
+
       if (body.telegram) {
         settings.telegram = {
           ...settings.telegram,
@@ -361,20 +379,51 @@ export async function POST(req: NextRequest) {
 
     // 3. Post Next Movie Across Enabled Social Channels
     if (action === "post_next_movie" || action === "broadcast_next") {
-      const siteUrl = settings.telegram?.siteUrl || "http://localhost:3000";
+      const siteUrl = (settings.seo?.siteUrl || settings.telegram?.siteUrl || "https://streamhd.to").replace(/\/+$/, "");
+      const postOnlyTopRated = settings.autoPost?.postOnlyTopRated ?? true;
+      const minRating = Number(settings.autoPost?.minRating ?? 7.0);
 
-      // Find the next unposted movie with highest voteAverage/popularity
-      const nextMovie = await MovieModel.findOne({
+      // 1. Build query for next unposted movie
+      const query: any = {
         $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
         posterPath: { $exists: true, $ne: "" },
-      }).sort({ popularity: -1, releaseDate: -1 });
+      };
+
+      // Apply top-rated constraint if enabled
+      if (postOnlyTopRated && minRating > 0) {
+        query.voteAverage = { $gte: minRating };
+      }
+
+      // Sort strictly by highest rating, then vote count, then release date
+      let nextMovie = await MovieModel.findOne(query).sort({
+        voteAverage: -1,
+        voteCount: -1,
+        popularity: -1,
+        releaseDate: -1,
+      });
+
+      // Fallback: If all movies above rating threshold have been posted, pick highest remaining unposted
+      if (!nextMovie && postOnlyTopRated) {
+        delete query.voteAverage;
+        nextMovie = await MovieModel.findOne(query).sort({
+          voteAverage: -1,
+          voteCount: -1,
+          popularity: -1,
+        });
+      }
 
       if (!nextMovie) {
         return NextResponse.json({
           success: false,
-          message: "All movies have already been posted!",
+          message: "All movies in the catalog have already been posted!",
         });
       }
+
+      if (!settings.autoPost) {
+        settings.autoPost = {};
+      }
+      settings.autoPost.lastPostedAt = new Date();
+      await settings.save();
 
       const year = nextMovie.releaseDate ? new Date(nextMovie.releaseDate).getFullYear() : "";
       const rating = nextMovie.voteAverage ? `⭐ ${nextMovie.voteAverage.toFixed(1)}/10` : "";
