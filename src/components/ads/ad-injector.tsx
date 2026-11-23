@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 interface AdsConfig {
   enabled: boolean;
@@ -10,9 +11,16 @@ interface AdsConfig {
 }
 
 export function AdInjector() {
+  const pathname = usePathname();
   const injectedRef = useRef(false);
 
+  const isAdminPage = Boolean(
+    pathname && (pathname === "/admin" || pathname.startsWith("/admin/"))
+  );
+
   useEffect(() => {
+    // Strictly prevent running ads on any admin routes
+    if (isAdminPage) return;
     if (injectedRef.current) return;
 
     async function initAds() {
@@ -59,7 +67,11 @@ export function AdInjector() {
     // Delay slightly to give priority to main content hydration
     const timer = setTimeout(initAds, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAdminPage]);
+
+  if (isAdminPage) {
+    return null;
+  }
 
   return null;
 }
