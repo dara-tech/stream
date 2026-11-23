@@ -6,6 +6,7 @@ import { MovieModal } from "@/components/movies/movie-modal";
 import { VideoPlayerModal } from "@/components/movies/video-player-modal";
 import { StreamPlayerModal } from "@/components/movies/stream-player-modal";
 import { SearchOverlay } from "@/components/movies/search-overlay";
+import { AdInjector } from "@/components/ads/ad-injector";
 
 const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -123,13 +124,7 @@ export default function RootLayout({
           <VideoPlayerModal />
           <SearchOverlay />
         </MovieProvider>
-        <Script
-          id="al5sm-ad-tag"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(s){s.dataset.zone='12330101',s.src='https://al5sm.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`
-          }}
-        />
+        <AdInjector />
       </body>
     </html>
   );

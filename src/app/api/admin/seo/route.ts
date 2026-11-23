@@ -41,6 +41,12 @@ export async function GET() {
           subtitle: "Ultra HD & 4K Streaming Platform",
           color: "#E50914",
         },
+        ads: settings.ads || {
+          enabled: true,
+          zoneId: "12330101",
+          scriptUrl: "https://al5sm.com/tag.min.js",
+          headerScript: "",
+        },
         stats: {
           totalAvailableMovies,
           sitemapUrl: `${siteUrl}/sitemap.xml`,
@@ -97,7 +103,27 @@ export async function POST(req: NextRequest) {
         logoImageUrl,
         logoSubtitle,
         logoColor,
+        adsEnabled,
+        adsZoneId,
+        adsScriptUrl,
+        adsHeaderScript,
       } = body;
+
+      if (!settings.ads) {
+        settings.ads = {
+          enabled: true,
+          zoneId: "12330101",
+          scriptUrl: "https://al5sm.com/tag.min.js",
+          headerScript: "",
+          updatedAt: new Date(),
+        };
+      }
+
+      if (adsEnabled !== undefined) settings.ads.enabled = Boolean(adsEnabled);
+      if (adsZoneId !== undefined) settings.ads.zoneId = String(adsZoneId).trim();
+      if (adsScriptUrl !== undefined) settings.ads.scriptUrl = String(adsScriptUrl).trim();
+      if (adsHeaderScript !== undefined) settings.ads.headerScript = String(adsHeaderScript).trim();
+      settings.ads.updatedAt = new Date();
 
       if (!settings.logo) {
         settings.logo = {
@@ -127,10 +153,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "SEO and Brand Logo settings saved successfully!",
+        message: "SEO, Brand Logo and Ad settings saved successfully!",
         data: {
           seo: settings.seo,
           logo: settings.logo,
+          ads: settings.ads,
         },
       });
     }

@@ -20,6 +20,13 @@ export interface ISiteSettings extends Document {
     subtitle?: string;
     color?: string;
   };
+  ads?: {
+    enabled?: boolean;
+    zoneId?: string;
+    scriptUrl?: string;
+    headerScript?: string;
+    updatedAt?: Date;
+  };
   streaming?: {
     defaultServerId?: string;
     disabledServerIds?: string[];
@@ -96,6 +103,13 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
       imageUrl: { type: String, default: "" },
       subtitle: { type: String, default: "Ultra HD & 4K Streaming Platform" },
       color: { type: String, default: "#E50914" },
+    },
+    ads: {
+      enabled: { type: Boolean, default: true },
+      zoneId: { type: String, default: "12330101" },
+      scriptUrl: { type: String, default: "https://al5sm.com/tag.min.js" },
+      headerScript: { type: String, default: "" },
+      updatedAt: { type: Date, default: Date.now },
     },
     streaming: {
       defaultServerId: { type: String, default: "moviepire" },

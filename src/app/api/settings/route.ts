@@ -15,6 +15,12 @@ export async function GET() {
           subtitle: "Ultra HD & 4K Streaming Platform",
           color: "#E50914",
         },
+        ads: settings?.ads || {
+          enabled: true,
+          zoneId: "12330101",
+          scriptUrl: "https://al5sm.com/tag.min.js",
+          headerScript: "",
+        },
         siteName: settings?.siteName || "StreamFlix",
       },
       {
@@ -31,6 +37,12 @@ export async function GET() {
         imageUrl: "",
         subtitle: "Ultra HD & 4K Streaming Platform",
         color: "#E50914",
+      },
+      ads: {
+        enabled: true,
+        zoneId: "12330101",
+        scriptUrl: "https://al5sm.com/tag.min.js",
+        headerScript: "",
       },
       siteName: "StreamFlix",
     });

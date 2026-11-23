@@ -45,6 +45,7 @@ import {
   Share2,
   Upload,
   Palette,
+  Sparkles,
 } from "lucide-react";
 import {
   TelegramBrandIcon,
@@ -289,6 +290,10 @@ export default function AdminPage() {
     logoImageUrl: "",
     logoSubtitle: "Ultra HD & 4K Streaming Platform",
     logoColor: "#E50914",
+    adsEnabled: true,
+    adsZoneId: "12330101",
+    adsScriptUrl: "https://al5sm.com/tag.min.js",
+    adsHeaderScript: "",
   });
   const [seoStats, setSeoStats] = useState<{
     totalAvailableMovies: number;
@@ -497,6 +502,10 @@ export default function AdminPage() {
           logoImageUrl: json.data.logo?.imageUrl || "",
           logoSubtitle: json.data.logo?.subtitle || "Ultra HD & 4K Streaming Platform",
           logoColor: json.data.logo?.color || "#E50914",
+          adsEnabled: json.data.ads?.enabled ?? true,
+          adsZoneId: json.data.ads?.zoneId || "12330101",
+          adsScriptUrl: json.data.ads?.scriptUrl || "https://al5sm.com/tag.min.js",
+          adsHeaderScript: json.data.ads?.headerScript || "",
         });
         setSeoStats(json.data.stats);
         setProbeUrl((prev) => (prev.trim() ? prev : json.data.stats?.sitemapUrl || "http://localhost:3000/sitemap.xml"));
@@ -3284,6 +3293,74 @@ export default function AdminPage() {
                             onChange={(e) => setSeoSettings({ ...seoSettings, ogImage: e.target.value })}
                             placeholder="https://moviestream.cc/og-image.jpg"
                           />
+                        </div>
+                      </div>
+
+                      {/* Ad Tags & Monetization Section */}
+                      <div className="pt-3 border-t border-white/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Ad Network & Monetization Tags
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-neutral-400 font-mono">Status:</span>
+                            <button
+                              type="button"
+                              onClick={() => setSeoSettings({ ...seoSettings, adsEnabled: !seoSettings.adsEnabled })}
+                              className={`px-2 py-0.5 text-[10px] font-bold uppercase transition cursor-pointer ${
+                                seoSettings.adsEnabled
+                                  ? "bg-emerald-950 text-emerald-400 border border-emerald-500/40"
+                                  : "bg-red-950 text-red-400 border border-red-500/40"
+                              }`}
+                            >
+                              {seoSettings.adsEnabled ? "● Ads Active" : "○ Ads Paused"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label className="mb-1 text-[10px]">Ad Zone ID</Label>
+                            <Input
+                              type="text"
+                              value={seoSettings.adsZoneId}
+                              onChange={(e) => setSeoSettings({ ...seoSettings, adsZoneId: e.target.value })}
+                              placeholder="e.g. 12330101"
+                              className="font-mono text-xs"
+                            />
+                            <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">
+                              Monetag / Propeller zone tag identifier.
+                            </p>
+                          </div>
+
+                          <div>
+                            <Label className="mb-1 text-[10px]">Ad Tag Script Source URL</Label>
+                            <Input
+                              type="text"
+                              value={seoSettings.adsScriptUrl}
+                              onChange={(e) => setSeoSettings({ ...seoSettings, adsScriptUrl: e.target.value })}
+                              placeholder="https://al5sm.com/tag.min.js"
+                              className="font-mono text-xs"
+                            />
+                            <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">
+                              Remote script tag loaded on client browsers.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="mb-1 text-[10px]">Custom Ad Script / HTML Snippet (Optional)</Label>
+                          <textarea
+                            rows={3}
+                            value={seoSettings.adsHeaderScript}
+                            onChange={(e) => setSeoSettings({ ...seoSettings, adsHeaderScript: e.target.value })}
+                            placeholder="<script>...</script> (Overrides default zone tag if populated)"
+                            className="w-full bg-neutral-900 border border-white/10 px-2.5 py-1.5 text-xs text-neutral-200 font-mono outline-none focus:ring-1 focus:ring-white/25 rounded-none"
+                          />
+                          <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">
+                            Paste any custom ad code, Google AdSense, or popunder script to run site-wide.
+                          </p>
                         </div>
                       </div>
 
