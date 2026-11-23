@@ -32,6 +32,8 @@ export interface ISiteSettings extends Document {
     intervalMinutes?: number;
     minRating?: number;
     postOnlyTopRated?: boolean;
+    postedTmdbIds?: number[];
+    feedType?: "top_rated" | "trending" | "now_playing";
     lastPostedAt?: Date;
     updatedAt?: Date;
   };
@@ -125,6 +127,8 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
       intervalMinutes: { type: Number, default: 30 },
       minRating: { type: Number, default: 7.0 },
       postOnlyTopRated: { type: Boolean, default: true },
+      postedTmdbIds: { type: [Number], default: [] },
+      feedType: { type: String, default: "top_rated" },
       lastPostedAt: { type: Date },
       updatedAt: { type: Date, default: Date.now },
     },

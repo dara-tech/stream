@@ -1,53 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
-import { MovieModel } from "@/models/Movie";
 import { TMDB_CONFIG } from "@/config/tmdb";
 import { testTumblrAuth, postMovieToTumblr } from "@/lib/tumblr";
 
-async function syncMoviesFromTMDB(limitPages = 3): Promise<number> {
-  try {
-    const apiKey = TMDB_CONFIG.API_KEY;
-    let inserted = 0;
-    const endpoints = [
-      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=1`,
-      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=2`,
-      `https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=3`,
-      `https://api.themoviedb.org/3/trending/movie/week?api_key=${apiKey}&page=1`,
-      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=1`,
-    ];
+interface TMDBMovieItem {
+  id: number;
+  title: string;
+  overview: string;
+  release_date?: string;
+  vote_average?: number;
+  vote_count?: number;
+  poster_path?: string;
+  backdrop_path?: string;
+}
 
-    for (const url of endpoints.slice(0, Math.max(1, limitPages))) {
-      const res = await fetch(url);
+/**
+ * Pure TMDB API Bridge: Fetches next unposted top-rated / trending movie directly from TMDB API
+ * No local MongoDB movie storage is needed.
+ */
+async function fetchNextMovieFromTMDB(
+  postedIds: number[] = [],
+  minRating = 7.0,
+  feedType: "top_rated" | "trending" | "now_playing" = "top_rated"
+): Promise<TMDBMovieItem | null> {
+  const apiKey = TMDB_CONFIG.API_KEY;
+  const postedSet = new Set(postedIds);
+
+  const endpoints: string[] = [];
+
+  // Scan up to 10 pages for unposted high-quality titles
+  for (let p = 1; p <= 10; p++) {
+    if (feedType === "trending") {
+      endpoints.push(`https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=${p}`);
+    } else if (feedType === "now_playing") {
+      endpoints.push(`https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&page=${p}`);
+    } else {
+      endpoints.push(`https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=${p}`);
+    }
+  }
+
+  // Fallbacks if top_rated has seen many titles
+  if (feedType === "top_rated") {
+    endpoints.push(
+      `https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=1`,
+      `https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=2`,
+      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=1`,
+      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=2`
+    );
+  }
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { next: { revalidate: 60 } });
       if (!res.ok) continue;
       const data = await res.json();
-      if (data.results && Array.isArray(data.results)) {
-        for (const m of data.results) {
-          if (!m.title || !m.poster_path) continue;
-          const exists = await MovieModel.findOne({ tmdbId: m.id });
-          if (!exists) {
-            await MovieModel.create({
-              tmdbId: m.id,
-              title: m.title,
-              overview: m.overview || "No overview available",
-              releaseDate: m.release_date ? new Date(m.release_date) : new Date(),
-              posterPath: m.poster_path,
-              backdropPath: m.backdrop_path || "",
-              voteAverage: m.vote_average || 0,
-              voteCount: m.vote_count || 0,
-              isAvailable: true,
-              telegramPostedAt: null,
-            });
-            inserted++;
-          }
-        }
+      if (!data.results || !Array.isArray(data.results)) continue;
+
+      for (const m of data.results) {
+        if (!m.id || !m.title || !m.poster_path) continue;
+        if (postedSet.has(m.id)) continue;
+        if (minRating > 0 && (m.vote_average ?? 0) < minRating) continue;
+        return m as TMDBMovieItem;
       }
+    } catch (err) {
+      console.error("TMDB fetch error:", err);
     }
-    return inserted;
-  } catch (err) {
-    console.error("Auto-sync TMDB catalog error:", err);
-    return 0;
   }
+
+  // If minRating was too strict, scan without rating filter to never run out of movies
+  if (minRating > 0) {
+    return fetchNextMovieFromTMDB(postedIds, 0, feedType);
+  }
+
+  return null;
 }
 
 export async function GET() {
@@ -55,23 +81,7 @@ export async function GET() {
     await connectToDatabase();
     const settings = await SiteSettings.findOne().lean();
 
-    let [unpostedCount, postedCount] = await Promise.all([
-      MovieModel.countDocuments({
-        $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
-      }),
-      MovieModel.countDocuments({ telegramPostedAt: { $ne: null } }),
-    ]);
-
-    // If MongoDB catalog has 0 movies, automatically seed top-rated movies from TMDB
-    if (unpostedCount === 0 && postedCount === 0) {
-      await syncMoviesFromTMDB(4);
-      [unpostedCount, postedCount] = await Promise.all([
-        MovieModel.countDocuments({
-          $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
-        }),
-        MovieModel.countDocuments({ telegramPostedAt: { $ne: null } }),
-      ]);
-    }
+    const postedTmdbIds = (settings?.autoPost?.postedTmdbIds as number[]) || [];
 
     return NextResponse.json({
       success: true,
@@ -80,7 +90,7 @@ export async function GET() {
           botToken: "",
           chatId: "",
           enabled: false,
-          siteUrl: "https://streamhd.to",
+          siteUrl: "https://www.streamhd.to",
         },
         bluesky: settings?.bluesky || {
           identifier: "",
@@ -102,24 +112,27 @@ export async function GET() {
           enabled: false,
         },
         tumblr: settings?.tumblr || {
-          consumerKey: "",
-          consumerSecret: "",
-          token: "",
-          tokenSecret: "",
-          blogIdentifier: "",
-          postState: "draft",
-          enabled: false,
+          consumerKey: "VLvlAFdYzyKLizYtgaWJGUNv0pp8zCLUoIFmW0C5ghPSb1Fk4O",
+          consumerSecret: "tzVkDyj89P4lCf0fZvWYqCzXRUiEHaHpcjLmsMEUZTCzAkUX3y",
+          token: "eaOkT3PcIuD0BCMsP5mBsdCEz0pe65sanzkb28YUlhDS7VVuHK",
+          tokenSecret: "26xAhlD2a8BQhCg7pGy3chvcng8gqbhnyWLZfdfIAMms04ZFyG",
+          blogIdentifier: "fanmovie",
+          postState: "published",
+          enabled: true,
         },
         stats: {
-          unpostedMovies: unpostedCount,
-          postedMovies: postedCount,
-          totalMovies: unpostedCount + postedCount,
+          mode: "TMDB Live Bridge",
+          unpostedMovies: "Unlimited (TMDB API)",
+          postedMovies: postedTmdbIds.length,
+          totalMovies: "10,000+ (TMDB)",
         },
         autoPost: settings?.autoPost || {
           enabled: false,
           intervalMinutes: 30,
           minRating: 7.0,
           postOnlyTopRated: true,
+          feedType: "top_rated",
+          postedTmdbIds: [],
           lastPostedAt: null,
         },
       },
@@ -143,105 +156,82 @@ export async function POST(req: NextRequest) {
     // 1. Save Settings (All Social Platforms)
     if (action === "save_settings" || action === "save_social_settings") {
       if (body.autoPost) {
-        settings.autoPost = {
-          ...settings.autoPost,
-          enabled: Boolean(body.autoPost.enabled),
-          intervalMinutes: Math.max(1, Number(body.autoPost.intervalMinutes) || 30),
-          minRating: Number(body.autoPost.minRating) || 7.0,
-          postOnlyTopRated: Boolean(body.autoPost.postOnlyTopRated),
-          updatedAt: new Date(),
-        };
+        if (!settings.autoPost) settings.autoPost = {};
+        if (body.autoPost.enabled !== undefined) settings.autoPost.enabled = Boolean(body.autoPost.enabled);
+        if (body.autoPost.intervalMinutes !== undefined) {
+          settings.autoPost.intervalMinutes = Math.max(1, Number(body.autoPost.intervalMinutes) || 30);
+        }
+        if (body.autoPost.minRating !== undefined) {
+          settings.autoPost.minRating = Number(body.autoPost.minRating) || 7.0;
+        }
+        if (body.autoPost.postOnlyTopRated !== undefined) {
+          settings.autoPost.postOnlyTopRated = Boolean(body.autoPost.postOnlyTopRated);
+        }
+        if (body.autoPost.feedType) {
+          settings.autoPost.feedType = body.autoPost.feedType;
+        }
+        settings.autoPost.updatedAt = new Date();
       }
 
       if (body.telegram) {
-        settings.telegram = {
-          ...settings.telegram,
-          botToken: body.telegram.botToken,
-          chatId: body.telegram.chatId,
-          siteUrl: body.telegram.siteUrl || body.siteUrl,
-          groupLink: body.telegram.groupLink,
-          enabled: Boolean(body.telegram.enabled),
-          updatedAt: new Date(),
-        };
-      } else if (body.botToken !== undefined) {
-        // legacy shape fallback
-        settings.telegram = {
-          ...settings.telegram,
-          botToken: body.botToken,
-          chatId: body.chatId,
-          siteUrl: body.siteUrl,
-          groupLink: body.groupLink,
-          enabled: Boolean(body.enabled),
-          updatedAt: new Date(),
-        };
+        if (!settings.telegram) settings.telegram = {};
+        if (body.telegram.botToken) settings.telegram.botToken = body.telegram.botToken;
+        if (body.telegram.chatId) settings.telegram.chatId = body.telegram.chatId;
+        if (body.telegram.siteUrl) settings.telegram.siteUrl = body.telegram.siteUrl;
+        if (body.telegram.groupLink !== undefined) settings.telegram.groupLink = body.telegram.groupLink;
+        if (body.telegram.enabled !== undefined) settings.telegram.enabled = Boolean(body.telegram.enabled);
+        settings.telegram.updatedAt = new Date();
       }
 
       if (body.bluesky) {
-        settings.bluesky = {
-          ...settings.bluesky,
-          identifier: body.bluesky.identifier,
-          appPassword: body.bluesky.appPassword,
-          serviceUrl: body.bluesky.serviceUrl || "https://bsky.social",
-          enabled: Boolean(body.bluesky.enabled),
-          updatedAt: new Date(),
-        };
+        if (!settings.bluesky) settings.bluesky = {};
+        if (body.bluesky.identifier) settings.bluesky.identifier = body.bluesky.identifier;
+        if (body.bluesky.appPassword) settings.bluesky.appPassword = body.bluesky.appPassword;
+        if (body.bluesky.serviceUrl) settings.bluesky.serviceUrl = body.bluesky.serviceUrl;
+        if (body.bluesky.enabled !== undefined) settings.bluesky.enabled = Boolean(body.bluesky.enabled);
+        settings.bluesky.updatedAt = new Date();
       }
 
       if (body.reddit) {
-        settings.reddit = {
-          ...settings.reddit,
-          clientId: body.reddit.clientId,
-          clientSecret: body.reddit.clientSecret,
-          username: body.reddit.username,
-          password: body.reddit.password,
-          subreddit: body.reddit.subreddit,
-          enabled: Boolean(body.reddit.enabled),
-          updatedAt: new Date(),
-        };
+        if (!settings.reddit) settings.reddit = {};
+        if (body.reddit.clientId) settings.reddit.clientId = body.reddit.clientId;
+        if (body.reddit.clientSecret) settings.reddit.clientSecret = body.reddit.clientSecret;
+        if (body.reddit.username) settings.reddit.username = body.reddit.username;
+        if (body.reddit.password) settings.reddit.password = body.reddit.password;
+        if (body.reddit.subreddit) settings.reddit.subreddit = body.reddit.subreddit;
+        if (body.reddit.enabled !== undefined) settings.reddit.enabled = Boolean(body.reddit.enabled);
+        settings.reddit.updatedAt = new Date();
       }
 
       if (body.facebook) {
-        settings.facebook = {
-          ...settings.facebook,
-          pageAccessToken: body.facebook.pageAccessToken,
-          pageId: body.facebook.pageId,
-          enabled: Boolean(body.facebook.enabled),
-          updatedAt: new Date(),
-        };
+        if (!settings.facebook) settings.facebook = {};
+        if (body.facebook.pageAccessToken) settings.facebook.pageAccessToken = body.facebook.pageAccessToken;
+        if (body.facebook.pageId) settings.facebook.pageId = body.facebook.pageId;
+        if (body.facebook.enabled !== undefined) settings.facebook.enabled = Boolean(body.facebook.enabled);
+        settings.facebook.updatedAt = new Date();
       }
 
       if (body.tumblr) {
-        settings.tumblr = {
-          ...settings.tumblr,
-          consumerKey: body.tumblr.consumerKey,
-          consumerSecret: body.tumblr.consumerSecret,
-          token: body.tumblr.token,
-          tokenSecret: body.tumblr.tokenSecret,
-          blogIdentifier: body.tumblr.blogIdentifier,
-          postState: body.tumblr.postState || "draft",
-          enabled: Boolean(body.tumblr.enabled),
-          updatedAt: new Date(),
-        };
+        if (!settings.tumblr) settings.tumblr = {};
+        if (body.tumblr.consumerKey) settings.tumblr.consumerKey = body.tumblr.consumerKey;
+        if (body.tumblr.consumerSecret) settings.tumblr.consumerSecret = body.tumblr.consumerSecret;
+        if (body.tumblr.token) settings.tumblr.token = body.tumblr.token;
+        if (body.tumblr.tokenSecret) settings.tumblr.tokenSecret = body.tumblr.tokenSecret;
+        if (body.tumblr.blogIdentifier) settings.tumblr.blogIdentifier = body.tumblr.blogIdentifier;
+        if (body.tumblr.postState) settings.tumblr.postState = body.tumblr.postState;
+        if (body.tumblr.enabled !== undefined) settings.tumblr.enabled = Boolean(body.tumblr.enabled);
+        settings.tumblr.updatedAt = new Date();
       }
 
       await settings.save();
-      return NextResponse.json({ success: true, message: "Social settings saved successfully!" });
-    }
-
-    // 1.1 Sync Catalog from TMDB
-    if (action === "sync_catalog") {
-      const pages = Math.min(10, Math.max(1, Number(body.pages) || 4));
-      const inserted = await syncMoviesFromTMDB(pages);
-      const total = await MovieModel.countDocuments();
-      const unposted = await MovieModel.countDocuments({
-        $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
-      });
       return NextResponse.json({
         success: true,
-        message: `Synced ${inserted} new movies from TMDB! Total catalog: ${total} (${unposted} queued to post)`,
-        total,
-        unposted,
-        inserted,
+        message: "Social broadcast & scheduler settings saved successfully!",
+        data: {
+          autoPost: settings.autoPost,
+          tumblr: settings.tumblr,
+          telegram: settings.telegram,
+        },
       });
     }
 
@@ -262,7 +252,7 @@ export async function POST(req: NextRequest) {
         }
 
         const telegramApiUrl = `https://api.telegram.org/bot${token}/sendMessage`;
-        const testMsg = `🎬 *StreamFlix Social Test*\n\n✅ Telegram channel connection verified!\n📡 Ready to broadcast movies & series.\n⏰ ${new Date().toLocaleString()}`;
+        const testMsg = `🎬 *StreamHD Social Test*\n\n✅ Telegram channel connection verified!\n📡 Ready to broadcast movies & series.\n⏰ ${new Date().toLocaleString()}`;
 
         const res = await fetch(telegramApiUrl, {
           method: "POST",
@@ -307,74 +297,19 @@ export async function POST(req: NextRequest) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ identifier, password: appPassword }),
           });
-
           const data = await res.json();
-          if (!res.ok) {
+          if (!res.ok || !data.accessJwt) {
             return NextResponse.json(
-              { success: false, message: data.message || "Bluesky authentication failed" },
+              { success: false, message: data.message || "Failed to authenticate with Bluesky" },
               { status: 400 }
             );
           }
-
           return NextResponse.json({
             success: true,
-            message: `Bluesky connection verified! Logged in as @${data.handle || identifier}`,
+            message: `Bluesky authenticated as ${data.handle} (${data.did})`,
           });
         } catch (e: any) {
-          return NextResponse.json(
-            { success: false, message: e.message || "Failed to reach Bluesky server" },
-            { status: 400 }
-          );
-        }
-      }
-
-      // REDDIT
-      if (channel === "reddit") {
-        const clientId = body.clientId || settings.reddit?.clientId;
-        const clientSecret = body.clientSecret || settings.reddit?.clientSecret;
-        const username = body.username || settings.reddit?.username;
-        const password = body.password || settings.reddit?.password;
-
-        if (!clientId || !clientSecret || !username || !password) {
-          return NextResponse.json(
-            { success: false, message: "Reddit Client ID, Secret, Username and Password are required" },
-            { status: 400 }
-          );
-        }
-
-        try {
-          const authString = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-          const res = await fetch("https://www.reddit.com/api/v1/access_token", {
-            method: "POST",
-            headers: {
-              Authorization: `Basic ${authString}`,
-              "Content-Type": "application/x-www-form-urlencoded",
-              "User-Agent": "StreamFlix-AutoPoster/1.0",
-            },
-            body: new URLSearchParams({
-              grant_type: "password",
-              username,
-              password,
-            }),
-          });
-
-          const data = await res.json();
-          if (data.error) {
-            return NextResponse.json(
-              { success: false, message: `Reddit auth error: ${data.error}` },
-              { status: 400 }
-            );
-          }
-
-          return NextResponse.json({
-            success: true,
-            message: "Reddit credentials verified successfully!",
-          });
-        } catch (e: any) {
-          return NextResponse.json(
-            { success: false, message: e.message || "Reddit API error" },
-            { status: 400 }
-          );
+          return NextResponse.json({ success: false, message: e.message || "Bluesky error" }, { status: 400 });
         }
       }
 
@@ -420,7 +355,7 @@ export async function POST(req: NextRequest) {
         const consumerSecret = body.consumerSecret || settings.tumblr?.consumerSecret;
         const token = body.token || settings.tumblr?.token;
         const tokenSecret = body.tokenSecret || settings.tumblr?.tokenSecret;
-        const blogIdentifier = body.blogIdentifier || settings.tumblr?.blogIdentifier;
+        const blogIdentifier = body.blogIdentifier || settings.tumblr?.blogIdentifier || "fanmovie";
 
         if (!consumerKey || !consumerSecret || !token || !tokenSecret) {
           return NextResponse.json(
@@ -434,7 +369,7 @@ export async function POST(req: NextRequest) {
           consumerSecret,
           token,
           tokenSecret,
-          blogIdentifier: blogIdentifier || "streamhdfan",
+          blogIdentifier,
         });
 
         return NextResponse.json(authResult, { status: authResult.success ? 200 : 400 });
@@ -443,77 +378,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Unknown channel" }, { status: 400 });
     }
 
-    // 3. Post Next Movie Across Enabled Social Channels
+    // 3. Post Next Movie Directly from TMDB API Bridge
     if (action === "post_next_movie" || action === "broadcast_next") {
-      const siteUrl = (settings.seo?.siteUrl || settings.telegram?.siteUrl || "https://streamhd.to").replace(/\/+$/, "");
-      const postOnlyTopRated = settings.autoPost?.postOnlyTopRated ?? true;
+      const siteUrl = "https://www.streamhd.to";
       const minRating = Number(settings.autoPost?.minRating ?? 7.0);
+      const feedType = (settings.autoPost?.feedType as any) || "top_rated";
+      const postedTmdbIds = (settings.autoPost?.postedTmdbIds as number[]) || [];
 
-      // 1. Build query for next unposted movie
-      const query: any = {
-        $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
-        posterPath: { $exists: true, $ne: "" },
-      };
+      // Fetch live movie from TMDB
+      const movie = await fetchNextMovieFromTMDB(postedTmdbIds, minRating, feedType);
 
-      // Apply top-rated constraint if enabled
-      if (postOnlyTopRated && minRating > 0) {
-        query.voteAverage = { $gte: minRating };
-      }
-
-      // Sort strictly by highest rating, then vote count, then release date
-      let nextMovie = await MovieModel.findOne(query).sort({
-        voteAverage: -1,
-        voteCount: -1,
-        popularity: -1,
-        releaseDate: -1,
-      });
-
-      // Fallback: If all movies above rating threshold have been posted, pick highest remaining unposted
-      if (!nextMovie && postOnlyTopRated) {
-        delete query.voteAverage;
-        nextMovie = await MovieModel.findOne(query).sort({
-          voteAverage: -1,
-          voteCount: -1,
-          popularity: -1,
-        });
-      }
-
-      // If still no movie found, auto-sync more movies from TMDB!
-      if (!nextMovie) {
-        await syncMoviesFromTMDB(4);
-        nextMovie = await MovieModel.findOne(query).sort({
-          voteAverage: -1,
-          voteCount: -1,
-          popularity: -1,
-        });
-      }
-
-      if (!nextMovie) {
+      if (!movie) {
         return NextResponse.json({
           success: false,
-          message: "All movies in the catalog have already been posted! Please sync more movies from TMDB.",
+          message: "No unposted movie found from TMDB. All top titles have already been broadcasted!",
         });
       }
 
-      if (!settings.autoPost) {
-        settings.autoPost = {};
-      }
-      settings.autoPost.lastPostedAt = new Date();
-      await settings.save();
-
-      const year = nextMovie.releaseDate ? new Date(nextMovie.releaseDate).getFullYear() : "";
-      const rating = nextMovie.voteAverage ? `⭐ ${nextMovie.voteAverage.toFixed(1)}/10` : "";
-      const streamLink = `${siteUrl}/movie/${nextMovie.tmdbId || nextMovie._id}`;
-      const posterUrl = nextMovie.posterPath?.startsWith("http")
-        ? nextMovie.posterPath
-        : `https://image.tmdb.org/t/p/w780${nextMovie.posterPath}`;
+      const year = movie.release_date ? new Date(movie.release_date).getFullYear().toString() : "";
+      const rating = movie.vote_average ? `⭐ ${movie.vote_average.toFixed(1)}/10` : "";
+      const streamLink = `${siteUrl}/movie/${movie.id}`;
+      const posterUrl = movie.poster_path
+        ? `https://image.tmdb.org/t/p/w780${movie.poster_path}`
+        : "";
 
       const results: Record<string, { success: boolean; message: string }> = {};
 
       // 3.1 Telegram Broadcast
       if (settings.telegram?.enabled && settings.telegram?.botToken && settings.telegram?.chatId) {
         try {
-          const caption = `🎬 *${nextMovie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${nextMovie.overview?.slice(0, 300)}...\n\n🍿 *Watch Online Free:* [Click Here to Stream](${streamLink})\n\n#Movie #${nextMovie.title.replace(/\s+/g, "")}`;
+          const caption = `🎬 *${movie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${movie.overview?.slice(0, 300)}...\n\n🍿 *Watch Online Free:* [Click Here to Stream](${streamLink})\n\n#Movie #${movie.title.replace(/[^\w]/g, "")}`;
           const res = await fetch(`https://api.telegram.org/bot${settings.telegram.botToken}/sendPhoto`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -555,7 +449,7 @@ export async function POST(req: NextRequest) {
           });
           const session = await sessionRes.json();
           if (sessionRes.ok && session.accessJwt && session.did) {
-            const bskyPostText = `🎬 Now Streaming: ${nextMovie.title} ${year ? `(${year})` : ""}\n\n${nextMovie.overview?.slice(0, 180)}...\n\n🍿 Watch: ${streamLink}`;
+            const bskyPostText = `🎬 Now Streaming: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 180)}...\n\n🍿 Watch: ${streamLink}`;
             const recordRes = await fetch(`${bskyUrl}/xrpc/com.atproto.repo.createRecord`, {
               method: "POST",
               headers: {
@@ -586,7 +480,7 @@ export async function POST(req: NextRequest) {
       // 3.3 Facebook Page Broadcast
       if (settings.facebook?.enabled && settings.facebook?.pageAccessToken && settings.facebook?.pageId) {
         try {
-          const fbMessage = `🎬 Stream Now: ${nextMovie.title} ${year ? `(${year})` : ""}\n\n${nextMovie.overview?.slice(0, 300)}...\n\n🍿 Watch Online Free: ${streamLink}`;
+          const fbMessage = `🎬 Stream Now: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Watch Online Free: ${streamLink}`;
           const fbRes = await fetch(`https://graph.facebook.com/v19.0/${settings.facebook.pageId}/feed`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -615,12 +509,6 @@ export async function POST(req: NextRequest) {
         settings.tumblr?.blogIdentifier
       ) {
         try {
-          const posterUrl = nextMovie.posterPath
-            ? nextMovie.posterPath.startsWith("http")
-              ? nextMovie.posterPath
-              : `https://image.tmdb.org/t/p/w780${nextMovie.posterPath}`
-            : "";
-
           const tumblrRes = await postMovieToTumblr(
             {
               consumerKey: settings.tumblr.consumerKey,
@@ -628,11 +516,11 @@ export async function POST(req: NextRequest) {
               token: settings.tumblr.token,
               tokenSecret: settings.tumblr.tokenSecret,
               blogIdentifier: settings.tumblr.blogIdentifier,
-              postState: (settings.tumblr.postState as any) || "draft",
+              postState: (settings.tumblr.postState as any) || "published",
             },
             {
-              title: nextMovie.title,
-              overview: nextMovie.overview || "",
+              title: movie.title,
+              overview: movie.overview || "",
               year,
               rating,
               posterUrl,
@@ -645,36 +533,31 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Check if any channel was attempted or enabled
-      const enabledChannels = ["telegram", "bluesky", "reddit", "facebook", "tumblr"].filter(
-        (ch) => (settings as any)?.[ch]?.enabled
-      );
-
-      if (enabledChannels.length === 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: "No social channels are enabled. Please enable Telegram, Bluesky, Reddit, Facebook, or Tumblr.",
-          },
-          { status: 400 }
-        );
+      // Track TMDB ID as posted
+      if (!settings.autoPost) settings.autoPost = {};
+      if (!Array.isArray(settings.autoPost.postedTmdbIds)) {
+        settings.autoPost.postedTmdbIds = [];
       }
-
-      // Mark movie as posted
-      nextMovie.telegramPostedAt = new Date();
-      await nextMovie.save();
+      settings.autoPost.postedTmdbIds.push(movie.id);
+      settings.autoPost.lastPostedAt = new Date();
+      await settings.save();
 
       const succeededCount = Object.values(results).filter((r) => r.success).length;
 
       return NextResponse.json({
         success: true,
-        message: `Broadcasted "${nextMovie.title}" to ${succeededCount} channel(s)`,
+        message: `Broadcasted "${movie.title}" (${year}) via live TMDB bridge!`,
         movie: {
-          id: nextMovie._id,
-          title: nextMovie.title,
-          postedAt: nextMovie.telegramPostedAt,
+          id: movie.id,
+          title: movie.title,
+          year,
+          rating,
+          streamLink,
+          posterUrl,
+          postedAt: settings.autoPost.lastPostedAt,
         },
         results,
+        succeededCount,
       });
     }
 

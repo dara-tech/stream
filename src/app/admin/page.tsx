@@ -198,13 +198,13 @@ export default function AdminPage() {
   const [showFbToken, setShowFbToken] = useState(false);
 
   // Tumblr
-  const [tumblrKey, setTumblrKey] = useState("");
-  const [tumblrSecret, setTumblrSecret] = useState("");
-  const [tumblrToken, setTumblrToken] = useState("");
-  const [tumblrTokenSecret, setTumblrTokenSecret] = useState("");
-  const [tumblrBlog, setTumblrBlog] = useState("");
-  const [tumblrEnabled, setTumblrEnabled] = useState(false);
-  const [tumblrPostState, setTumblrPostState] = useState<"draft" | "queue" | "published">("draft");
+  const [tumblrKey, setTumblrKey] = useState("VLvlAFdYzyKLizYtgaWJGUNv0pp8zCLUoIFmW0C5ghPSb1Fk4O");
+  const [tumblrSecret, setTumblrSecret] = useState("tzVkDyj89P4lCf0fZvWYqCzXRUiEHaHpcjLmsMEUZTCzAkUX3y");
+  const [tumblrToken, setTumblrToken] = useState("eaOkT3PcIuD0BCMsP5mBsdCEz0pe65sanzkb28YUlhDS7VVuHK");
+  const [tumblrTokenSecret, setTumblrTokenSecret] = useState("26xAhlD2a8BQhCg7pGy3chvcng8gqbhnyWLZfdfIAMms04ZFyG");
+  const [tumblrBlog, setTumblrBlog] = useState("fanmovie");
+  const [tumblrEnabled, setTumblrEnabled] = useState(true);
+  const [tumblrPostState, setTumblrPostState] = useState<"draft" | "queue" | "published">("published");
   const [showTumblrSecret, setShowTumblrSecret] = useState(false);
 
   // General Social States
@@ -476,13 +476,13 @@ export default function AdminPage() {
           setFbEnabled(Boolean(facebook.enabled));
         }
         if (tumblr) {
-          setTumblrKey(tumblr.consumerKey || "");
-          setTumblrSecret(tumblr.consumerSecret || "");
-          setTumblrToken(tumblr.token || "");
-          setTumblrTokenSecret(tumblr.tokenSecret || "");
-          setTumblrBlog(tumblr.blogIdentifier || "");
+          if (tumblr.consumerKey) setTumblrKey(tumblr.consumerKey);
+          if (tumblr.consumerSecret) setTumblrSecret(tumblr.consumerSecret);
+          if (tumblr.token) setTumblrToken(tumblr.token);
+          if (tumblr.tokenSecret) setTumblrTokenSecret(tumblr.tokenSecret);
+          if (tumblr.blogIdentifier) setTumblrBlog(tumblr.blogIdentifier);
           if (tumblr.postState) setTumblrPostState(tumblr.postState);
-          setTumblrEnabled(Boolean(tumblr.enabled));
+          if (tumblr.enabled !== undefined) setTumblrEnabled(Boolean(tumblr.enabled));
         }
         if (autoPost) {
           setAutoPostConfig({
@@ -882,6 +882,66 @@ export default function AdminPage() {
       showNotification("error", e.message || "Network error");
     } finally {
       setBroadcastingNext(false);
+    }
+  };
+
+  const handleQuickSaveInterval = async (mins: number) => {
+    const updated = { ...autoPostConfig, intervalMinutes: mins };
+    setAutoPostConfig(updated);
+    setNextPostCountdown(mins * 60);
+    try {
+      await fetch("/api/admin/autopost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_social_settings",
+          autoPost: updated,
+        }),
+      });
+      showNotification("success", `Posting interval set to ${mins} minutes & saved!`);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleQuickToggleAutoPost = async (enabled: boolean) => {
+    const updated = { ...autoPostConfig, enabled };
+    setAutoPostConfig(updated);
+    if (enabled) {
+      setNextPostCountdown(updated.intervalMinutes * 60);
+    } else {
+      setNextPostCountdown(null);
+    }
+    try {
+      await fetch("/api/admin/autopost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_social_settings",
+          autoPost: updated,
+        }),
+      });
+      showNotification("success", enabled ? "Auto-Scheduler enabled & active!" : "Auto-Scheduler paused");
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleQuickSaveRatingFilter = async (postOnlyTopRated: boolean, minRating: number) => {
+    const updated = { ...autoPostConfig, postOnlyTopRated, minRating };
+    setAutoPostConfig(updated);
+    try {
+      await fetch("/api/admin/autopost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_social_settings",
+          autoPost: updated,
+        }),
+      });
+      showNotification("success", `Quality filter set to ${postOnlyTopRated ? `★ ${minRating.toFixed(1)}+` : "All Ratings"} & saved!`);
+    } catch {
+      // ignore
     }
   };
 
@@ -2368,20 +2428,12 @@ export default function AdminPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleSyncCatalog}
-                    disabled={syncingCatalog}
-                    className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-2.5 py-1.5 transition cursor-pointer disabled:opacity-50"
-                  >
-                    {syncingCatalog ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-                    <span>{syncingCatalog ? "Syncing..." : "Sync TMDB Catalog"}</span>
-                  </button>
-                  <button
                     onClick={handleBroadcastNext}
                     disabled={broadcastingNext}
-                    className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 transition cursor-pointer disabled:opacity-50"
+                    className="flex items-center gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 transition cursor-pointer disabled:opacity-50 shadow-sm"
                   >
                     {broadcastingNext ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                    <span>Broadcast Next Title</span>
+                    <span>⚡ Test Broadcast 1 Movie Now</span>
                   </button>
                   <button
                     onClick={fetchSocial}
@@ -2396,27 +2448,27 @@ export default function AdminPage() {
               {/* Status KPI Strip */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
-                  <span className="text-neutral-400 text-[11px]">Catalog</span>
-                  <div className="text-xl font-bold font-mono text-white">
-                    {(socialStats.totalMovies ?? 0).toLocaleString()}
+                  <span className="text-neutral-400 text-[11px]">TMDB Bridge</span>
+                  <div className="text-xl font-bold font-mono text-cyan-400">
+                    Live API
                   </div>
-                  <span className="text-[10px] text-neutral-500 font-mono">In MongoDB</span>
+                  <span className="text-[10px] text-neutral-500 font-mono">Direct Gateway (No DB)</span>
                 </div>
 
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
-                  <span className="text-neutral-400 text-[11px]">Unposted</span>
+                  <span className="text-neutral-400 text-[11px]">Queue</span>
                   <div className="text-xl font-bold font-mono text-amber-400">
-                    {(socialStats.unpostedMovies ?? 0).toLocaleString()}
+                    Unlimited
                   </div>
-                  <span className="text-[10px] text-neutral-500 font-mono">Queued</span>
+                  <span className="text-[10px] text-neutral-500 font-mono">Top-Rated & Trending</span>
                 </div>
 
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
-                  <span className="text-neutral-400 text-[11px]">Posted</span>
+                  <span className="text-neutral-400 text-[11px]">Broadcasted</span>
                   <div className="text-xl font-bold font-mono text-emerald-400">
                     {(socialStats.postedMovies ?? 0).toLocaleString()}
                   </div>
-                  <span className="text-[10px] text-neutral-500 font-mono">Broadcasted</span>
+                  <span className="text-[10px] text-neutral-500 font-mono">Titles Streamed</span>
                 </div>
 
                 <div className="p-3 bg-[#141414] border border-white/10 space-y-1">
@@ -2449,7 +2501,7 @@ export default function AdminPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-neutral-400">
-                      Configure automated multi-channel broadcasts. Filter strictly for top-rated movies and set your broadcast frequency.
+                      Configure automated multi-channel broadcasts. Fetches live top-rated movies directly from TMDB and broadcasts to active channels.
                     </p>
                   </div>
 
@@ -2479,7 +2531,7 @@ export default function AdminPage() {
                         <input
                           type="checkbox"
                           checked={autoPostConfig.enabled}
-                          onChange={(e) => setAutoPostConfig({ ...autoPostConfig, enabled: e.target.checked })}
+                          onChange={(e) => handleQuickToggleAutoPost(e.target.checked)}
                           className="sr-only peer"
                         />
                         <div className="w-11 h-6 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
@@ -2494,7 +2546,7 @@ export default function AdminPage() {
                   <div className="p-3 bg-neutral-900/60 border border-white/5 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-white">Posting Interval</span>
-                      <span className="text-[10px] font-mono text-neutral-400">Minutes between posts</span>
+                      <span className="text-[10px] font-mono text-neutral-400">Auto-saved immediately</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -2506,6 +2558,10 @@ export default function AdminPage() {
                           const val = Math.max(1, parseInt(e.target.value) || 1);
                           setAutoPostConfig({ ...autoPostConfig, intervalMinutes: val });
                         }}
+                        onBlur={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value) || 1);
+                          handleQuickSaveInterval(val);
+                        }}
                         className="w-24 bg-black border border-white/20 px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-[#E50914]"
                       />
                       <span className="text-xs text-neutral-400 font-mono">minutes</span>
@@ -2515,10 +2571,10 @@ export default function AdminPage() {
                         <button
                           key={mins}
                           type="button"
-                          onClick={() => setAutoPostConfig({ ...autoPostConfig, intervalMinutes: mins })}
+                          onClick={() => handleQuickSaveInterval(mins)}
                           className={`px-2 py-0.5 text-[10px] font-mono border transition cursor-pointer ${
                             autoPostConfig.intervalMinutes === mins
-                              ? "bg-[#E50914] border-red-500 text-white font-bold"
+                              ? "bg-[#E50914] border-red-500 text-white font-bold shadow-sm"
                               : "bg-neutral-800 border-white/10 text-neutral-400 hover:text-white"
                           }`}
                         >
@@ -2551,9 +2607,9 @@ export default function AdminPage() {
                       onChange={(e) => {
                         const val = parseFloat(e.target.value);
                         if (val === 0) {
-                          setAutoPostConfig({ ...autoPostConfig, postOnlyTopRated: false, minRating: 0 });
+                          handleQuickSaveRatingFilter(false, 0);
                         } else {
-                          setAutoPostConfig({ ...autoPostConfig, postOnlyTopRated: true, minRating: val });
+                          handleQuickSaveRatingFilter(true, val);
                         }
                       }}
                       className="w-full bg-black border border-white/20 px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-[#E50914]"
@@ -2575,32 +2631,23 @@ export default function AdminPage() {
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-white/5">
                   <div className="text-[11px] text-neutral-500">
-                    Target site stream link: <span className="font-mono text-neutral-300">{socialSiteUrl || "https://streamhd.to"}/movie/[id]</span>
+                    Target site stream link: <span className="font-mono text-neutral-300">https://www.streamhd.to/movie/[id]</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={handleSyncCatalog}
-                      disabled={syncingCatalog}
-                      className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-white/20 text-neutral-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      {syncingCatalog ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-                      <span>{syncingCatalog ? "Syncing..." : "Sync Catalog"}</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={handleBroadcastNext}
                       disabled={broadcastingNext}
-                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
                     >
                       {broadcastingNext ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                      <span>{broadcastingNext ? "Broadcasting..." : "⚡ Test Post 1 Movie Now"}</span>
+                      <span>{broadcastingNext ? "Broadcasting..." : "⚡ Test Broadcast 1 Movie Now (TMDB Live)"}</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveSocialSettings}
                       disabled={savingSocial}
-                      className="px-3.5 py-1.5 bg-[#E50914] hover:bg-[#b80710] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="px-3.5 py-2 bg-[#E50914] hover:bg-[#b80710] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       {savingSocial ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                       <span>Save Scheduler Settings</span>
@@ -3132,7 +3179,16 @@ export default function AdminPage() {
                           📋 Copy HTML Draft
                         </button>
                         <a
-                          href={`https://www.tumblr.com/blog/${tumblrBlog || "streamhdfan"}/drafts`}
+                          href={`https://www.tumblr.com/${tumblrBlog || "fanmovie"}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white text-[11px] font-mono transition flex items-center gap-1"
+                        >
+                          <span>Open @{tumblrBlog || "fanmovie"} Blog</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <a
+                          href={`https://www.tumblr.com/blog/${tumblrBlog || "fanmovie"}/drafts`}
                           target="_blank"
                           rel="noreferrer"
                           className="px-2.5 py-1 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-[11px] font-mono transition flex items-center gap-1"
@@ -3143,15 +3199,35 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    <div className="pt-2 flex items-center justify-between">
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTestChannel("tumblr")}
+                          disabled={testingChannel === "tumblr"}
+                          className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {testingChannel === "tumblr" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          <span>Test Tumblr Connection</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleBroadcastNext}
+                          disabled={broadcastingNext}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-sm"
+                        >
+                          {broadcastingNext ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                          <span>⚡ Test Broadcast 1 Movie Now</span>
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => handleTestChannel("tumblr")}
-                        disabled={testingChannel === "tumblr"}
-                        className="px-3 py-1.5 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        onClick={handleSaveSocialSettings}
+                        disabled={savingSocial}
+                        className="px-3.5 py-1.5 bg-[#E50914] hover:bg-[#b80710] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        {testingChannel === "tumblr" ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                        <span>Test Tumblr Connection</span>
+                        {savingSocial ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                        <span>Save Tumblr Settings</span>
                       </button>
                     </div>
                   </div>
