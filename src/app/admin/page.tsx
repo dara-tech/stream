@@ -204,6 +204,7 @@ export default function AdminPage() {
   const [tumblrTokenSecret, setTumblrTokenSecret] = useState("");
   const [tumblrBlog, setTumblrBlog] = useState("");
   const [tumblrEnabled, setTumblrEnabled] = useState(false);
+  const [tumblrPostState, setTumblrPostState] = useState<"draft" | "queue" | "published">("draft");
   const [showTumblrSecret, setShowTumblrSecret] = useState(false);
 
   // General Social States
@@ -480,6 +481,7 @@ export default function AdminPage() {
           setTumblrToken(tumblr.token || "");
           setTumblrTokenSecret(tumblr.tokenSecret || "");
           setTumblrBlog(tumblr.blogIdentifier || "");
+          if (tumblr.postState) setTumblrPostState(tumblr.postState);
           setTumblrEnabled(Boolean(tumblr.enabled));
         }
         if (autoPost) {
@@ -792,6 +794,7 @@ export default function AdminPage() {
             token: tumblrToken,
             tokenSecret: tumblrTokenSecret,
             blogIdentifier: tumblrBlog,
+            postState: tumblrPostState,
             enabled: tumblrEnabled,
           },
           autoPost: autoPostConfig,
@@ -833,6 +836,9 @@ export default function AdminPage() {
         payload.pageId = fbPageId;
       } else if (channel === "tumblr") {
         payload.consumerKey = tumblrKey;
+        payload.consumerSecret = tumblrSecret;
+        payload.token = tumblrToken;
+        payload.tokenSecret = tumblrTokenSecret;
         payload.blogIdentifier = tumblrBlog;
       }
 
@@ -3076,6 +3082,64 @@ export default function AdminPage() {
                             {showTumblrSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                           </button>
                         </div>
+                      </div>
+
+                      {/* Publishing Mode */}
+                      <div className="md:col-span-2">
+                        <label className="block text-[10px] uppercase font-mono text-neutral-400 mb-1">
+                          Publishing State (Anti-Bot Protection)
+                        </label>
+                        <select
+                          value={tumblrPostState}
+                          onChange={(e) => setTumblrPostState(e.target.value as any)}
+                          className="w-full bg-[#0e0e0e] border border-white/10 px-2.5 py-1.5 text-xs text-white font-mono outline-none focus:border-indigo-500"
+                        >
+                          <option value="draft">📝 Save as Draft (Recommended - 100% Anti-Bot Safe)</option>
+                          <option value="queue">⏳ Add to Queue (Gradual Publishing)</option>
+                          <option value="published">🚀 Publish Immediately (Live Public)</option>
+                        </select>
+                        <p className="text-[10px] font-mono text-amber-400/90 mt-1">
+                          💡 <strong>Anti-Ban Protection:</strong> New Tumblr accounts get flagged or terminated if automated scripts publish external stream links immediately. Setting to <strong>"Draft"</strong> saves directly to your Tumblr Drafts folder safely without triggering automated spam suspensions.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Ready-to-use Draft Template */}
+                    <div className="p-3 bg-neutral-900/60 border border-white/5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-neutral-200">Tumblr Draft Template & Copy</span>
+                        <span className="text-[10px] font-mono text-neutral-500">For manual or automated posting</span>
+                      </div>
+                      <div className="p-2.5 bg-black/60 border border-white/10 font-mono text-[11px] text-neutral-300 space-y-1.5">
+                        <div className="text-white font-bold">🎬 Title: StreamHD - Watch Movies Online Free</div>
+                        <div className="text-neutral-400 text-[10px]">
+                          &lt;p&gt;&lt;strong&gt;🍿 Stream Now:&lt;/strong&gt; &lt;a href="https://streamhd.to/movie/1560520" target="_blank"&gt;Batman: Knightfall (2026)&lt;/a&gt;&lt;/p&gt;<br />
+                          &lt;p&gt;Watch the full movie in HD on StreamHD platform.&lt;/p&gt;
+                        </div>
+                        <div className="text-[10px] text-indigo-400">#movies #streaming #streamhd #cinema #hd</div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (navigator.clipboard) {
+                              navigator.clipboard.writeText('<p><strong>🍿 Stream Now:</strong> <a href="https://streamhd.to" target="_blank">Watch Movies Online Free on StreamHD</a></p>');
+                              showNotification("success", "HTML Draft copied to clipboard!");
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white text-[11px] font-mono transition cursor-pointer"
+                        >
+                          📋 Copy HTML Draft
+                        </button>
+                        <a
+                          href={`https://www.tumblr.com/blog/${tumblrBlog || "streamhdfan"}/drafts`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-300 text-[11px] font-mono transition flex items-center gap-1"
+                        >
+                          <span>Open Tumblr Drafts</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
                     </div>
 

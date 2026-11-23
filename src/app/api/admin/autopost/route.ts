@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
 import { MovieModel } from "@/models/Movie";
 import { TMDB_CONFIG } from "@/config/tmdb";
+import { testTumblrAuth, postMovieToTumblr } from "@/lib/tumblr";
 
 async function syncMoviesFromTMDB(limitPages = 3): Promise<number> {
   try {
@@ -106,6 +107,7 @@ export async function GET() {
           token: "",
           tokenSecret: "",
           blogIdentifier: "",
+          postState: "draft",
           enabled: false,
         },
         stats: {
@@ -216,6 +218,7 @@ export async function POST(req: NextRequest) {
           token: body.tumblr.token,
           tokenSecret: body.tumblr.tokenSecret,
           blogIdentifier: body.tumblr.blogIdentifier,
+          postState: body.tumblr.postState || "draft",
           enabled: Boolean(body.tumblr.enabled),
           updatedAt: new Date(),
         };
@@ -411,41 +414,30 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // TUMBLR
+      // TUMBLR (OAuth 1.0a)
       if (channel === "tumblr") {
         const consumerKey = body.consumerKey || settings.tumblr?.consumerKey;
+        const consumerSecret = body.consumerSecret || settings.tumblr?.consumerSecret;
+        const token = body.token || settings.tumblr?.token;
+        const tokenSecret = body.tokenSecret || settings.tumblr?.tokenSecret;
         const blogIdentifier = body.blogIdentifier || settings.tumblr?.blogIdentifier;
 
-        if (!consumerKey || !blogIdentifier) {
+        if (!consumerKey || !consumerSecret || !token || !tokenSecret) {
           return NextResponse.json(
-            { success: false, message: "Tumblr Consumer Key and Blog Identifier are required" },
+            { success: false, message: "Tumblr Consumer Key, Consumer Secret, OAuth Token, and Token Secret are required" },
             { status: 400 }
           );
         }
 
-        try {
-          const cleanBlog = blogIdentifier.replace(/^https?:\/\//, "").replace(/\/$/, "");
-          const res = await fetch(
-            `https://api.tumblr.com/v2/blog/${cleanBlog}/info?api_key=${consumerKey}`
-          );
-          const data = await res.json();
-          if (data.meta?.status !== 200) {
-            return NextResponse.json(
-              { success: false, message: data.meta?.msg || "Tumblr API verification failed" },
-              { status: 400 }
-            );
-          }
+        const authResult = await testTumblrAuth({
+          consumerKey,
+          consumerSecret,
+          token,
+          tokenSecret,
+          blogIdentifier: blogIdentifier || "streamhdfan",
+        });
 
-          return NextResponse.json({
-            success: true,
-            message: `Tumblr Blog verified: "${data.response?.blog?.title || cleanBlog}"`,
-          });
-        } catch (e: any) {
-          return NextResponse.json(
-            { success: false, message: e.message || "Tumblr API error" },
-            { status: 400 }
-          );
-        }
+        return NextResponse.json(authResult, { status: authResult.success ? 200 : 400 });
       }
 
       return NextResponse.json({ success: false, message: "Unknown channel" }, { status: 400 });
@@ -610,6 +602,46 @@ export async function POST(req: NextRequest) {
             : { success: false, message: fbData.error?.message || "Facebook post failed" };
         } catch (e: any) {
           results.facebook = { success: false, message: e.message };
+        }
+      }
+
+      // 3.4 Tumblr Broadcast (OAuth 1.0a)
+      if (
+        settings.tumblr?.enabled &&
+        settings.tumblr?.consumerKey &&
+        settings.tumblr?.consumerSecret &&
+        settings.tumblr?.token &&
+        settings.tumblr?.tokenSecret &&
+        settings.tumblr?.blogIdentifier
+      ) {
+        try {
+          const posterUrl = nextMovie.posterPath
+            ? nextMovie.posterPath.startsWith("http")
+              ? nextMovie.posterPath
+              : `https://image.tmdb.org/t/p/w780${nextMovie.posterPath}`
+            : "";
+
+          const tumblrRes = await postMovieToTumblr(
+            {
+              consumerKey: settings.tumblr.consumerKey,
+              consumerSecret: settings.tumblr.consumerSecret,
+              token: settings.tumblr.token,
+              tokenSecret: settings.tumblr.tokenSecret,
+              blogIdentifier: settings.tumblr.blogIdentifier,
+              postState: (settings.tumblr.postState as any) || "draft",
+            },
+            {
+              title: nextMovie.title,
+              overview: nextMovie.overview || "",
+              year,
+              rating,
+              posterUrl,
+              streamLink,
+            }
+          );
+          results.tumblr = tumblrRes;
+        } catch (e: any) {
+          results.tumblr = { success: false, message: e.message };
         }
       }
 

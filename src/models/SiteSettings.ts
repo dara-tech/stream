@@ -80,6 +80,7 @@ export interface ISiteSettings extends Document {
     token?: string;
     tokenSecret?: string;
     blogIdentifier?: string;
+    postState?: "draft" | "queue" | "published";
     enabled?: boolean;
     updatedAt?: Date;
   };
@@ -186,6 +187,7 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
       token: { type: String },
       tokenSecret: { type: String },
       blogIdentifier: { type: String },
+      postState: { type: String, enum: ["draft", "queue", "published"], default: "draft" },
       enabled: { type: Boolean, default: false },
       updatedAt: { type: Date, default: Date.now },
     },
