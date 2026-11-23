@@ -140,10 +140,28 @@ export async function postMovieToTumblr(
     posterUrl: string;
     streamLink: string;
   }
-): Promise<{ success: boolean; message: string; postId?: string }> {
+): Promise<{ success: boolean; message: string; postId?: string; blogName?: string }> {
   try {
-    const cleanBlog = config.blogIdentifier.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    const endpoint = `https://api.tumblr.com/v2/blog/${cleanBlog}/post`;
+    let cleanBlog = (config.blogIdentifier || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+    // Proactively resolve primary blog name if blogIdentifier is missing
+    if (!cleanBlog) {
+      try {
+        const userInfo = await requestTumblrOAuth("GET", "https://api.tumblr.com/v2/user/info", config);
+        const primary =
+          userInfo?.response?.user?.blogs?.find((b: any) => b.primary) ||
+          userInfo?.response?.user?.blogs?.[0];
+        if (primary?.name) {
+          cleanBlog = primary.name;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!cleanBlog) {
+      cleanBlog = "synatuon";
+    }
 
     const postState = config.postState || "published";
 
@@ -166,7 +184,29 @@ export async function postMovieToTumblr(
       state: postState,
     };
 
-    const res = await requestTumblrOAuth("POST", endpoint, config, postParams);
+    let res: any;
+    try {
+      const endpoint = `https://api.tumblr.com/v2/blog/${cleanBlog}/post`;
+      res = await requestTumblrOAuth("POST", endpoint, config, postParams);
+    } catch (err: any) {
+      // If 404 or Not Found, discover the actual primary blog from the OAuth token and retry
+      if (err.message?.includes("404") || err.message?.includes("Not Found")) {
+        const userInfo = await requestTumblrOAuth("GET", "https://api.tumblr.com/v2/user/info", config);
+        const primary =
+          userInfo?.response?.user?.blogs?.find((b: any) => b.primary) ||
+          userInfo?.response?.user?.blogs?.[0];
+        if (primary?.name && primary.name !== cleanBlog) {
+          cleanBlog = primary.name;
+          const retryEndpoint = `https://api.tumblr.com/v2/blog/${cleanBlog}/post`;
+          res = await requestTumblrOAuth("POST", retryEndpoint, config, postParams);
+        } else {
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
+
     const id = res?.response?.id_string || res?.response?.id;
 
     return {
@@ -178,6 +218,7 @@ export async function postMovieToTumblr(
           ? `Added to Tumblr Queue (@${cleanBlog})`
           : `Published Live to Tumblr (@${cleanBlog})`,
       postId: String(id || ""),
+      blogName: cleanBlog,
     };
   } catch (error: any) {
     return {
