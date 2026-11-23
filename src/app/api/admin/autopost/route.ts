@@ -1,108 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
-import { TMDB_CONFIG } from "@/config/tmdb";
-import { testTumblrAuth, postMovieToTumblr } from "@/lib/tumblr";
+import { testTumblrAuth } from "@/lib/tumblr";
+import {
+  broadcastNextMovie,
+  checkAndRunAutoPost,
+  startServerScheduler,
+} from "@/lib/server-scheduler";
 
-interface TMDBMovieItem {
-  id: number;
-  title: string;
-  overview: string;
-  release_date?: string;
-  vote_average?: number;
-  vote_count?: number;
-  poster_path?: string;
-  backdrop_path?: string;
-}
-
-/**
- * Fetches the official YouTube trailer for a given TMDB movie ID
- */
-async function fetchMovieTrailer(movieId: number): Promise<string | null> {
-  try {
-    const apiKey = TMDB_CONFIG.API_KEY;
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${apiKey}`, {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.results || !Array.isArray(data.results)) return null;
-
-    // Prioritize official YouTube trailer, then teaser, then any YouTube video
-    const trailer =
-      data.results.find((v: any) => v.site === "YouTube" && v.type === "Trailer" && v.official) ||
-      data.results.find((v: any) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")) ||
-      data.results.find((v: any) => v.site === "YouTube");
-
-    if (trailer?.key) {
-      return `https://www.youtube.com/watch?v=${trailer.key}`;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Pure TMDB API Bridge: Fetches next unposted top-rated / trending movie directly from TMDB API
- * No local MongoDB movie storage is needed.
- */
-async function fetchNextMovieFromTMDB(
-  postedIds: number[] = [],
-  minRating = 7.0,
-  feedType: "top_rated" | "trending" | "now_playing" = "top_rated"
-): Promise<TMDBMovieItem | null> {
-  const apiKey = TMDB_CONFIG.API_KEY;
-  const postedSet = new Set(postedIds);
-
-  const endpoints: string[] = [];
-
-  // Scan up to 10 pages for unposted high-quality titles
-  for (let p = 1; p <= 10; p++) {
-    if (feedType === "trending") {
-      endpoints.push(`https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=${p}`);
-    } else if (feedType === "now_playing") {
-      endpoints.push(`https://api.themoviedb.org/3/movie/now_playing?api_key=${apiKey}&page=${p}`);
-    } else {
-      endpoints.push(`https://api.themoviedb.org/3/movie/top_rated?api_key=${apiKey}&page=${p}`);
-    }
-  }
-
-  // Fallbacks if top_rated has seen many titles
-  if (feedType === "top_rated") {
-    endpoints.push(
-      `https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=1`,
-      `https://api.themoviedb.org/3/trending/movie/day?api_key=${apiKey}&page=2`,
-      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=1`,
-      `https://api.themoviedb.org/3/movie/popular?api_key=${apiKey}&page=2`
-    );
-  }
-
-  for (const url of endpoints) {
-    try {
-      const res = await fetch(url, { next: { revalidate: 60 } });
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (!data.results || !Array.isArray(data.results)) continue;
-
-      for (const m of data.results) {
-        if (!m.id || !m.title || !m.poster_path) continue;
-        if (postedSet.has(m.id)) continue;
-        if (minRating > 0 && (m.vote_average ?? 0) < minRating) continue;
-        return m as TMDBMovieItem;
-      }
-    } catch (err) {
-      console.error("TMDB fetch error:", err);
-    }
-  }
-
-  // If minRating was too strict, scan without rating filter to never run out of movies
-  if (minRating > 0) {
-    return fetchNextMovieFromTMDB(postedIds, 0, feedType);
-  }
-
-  return null;
-}
+// Initialize 24/7 background scheduler daemon on the server
+startServerScheduler();
 
 export async function GET() {
   try {
@@ -252,6 +159,12 @@ export async function POST(req: NextRequest) {
       }
 
       await settings.save();
+
+      // If auto-post was enabled, trigger an immediate check
+      if (settings.autoPost?.enabled) {
+        checkAndRunAutoPost().catch((err) => console.error("[AutoPost] Immediate trigger error:", err));
+      }
+
       return NextResponse.json({
         success: true,
         message: "Social broadcast & scheduler settings saved successfully!",
@@ -408,194 +321,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Post Next Movie Directly from TMDB API Bridge
     if (action === "post_next_movie" || action === "broadcast_next") {
-      const siteUrl = "https://www.streamhd.to";
-      const minRating = Number(settings.autoPost?.minRating ?? 7.0);
-      const feedType = (settings.autoPost?.feedType as any) || "top_rated";
-      const postedTmdbIds = (settings.autoPost?.postedTmdbIds as number[]) || [];
-
-      // Fetch live movie from TMDB
-      const movie = await fetchNextMovieFromTMDB(postedTmdbIds, minRating, feedType);
-
-      if (!movie) {
-        return NextResponse.json({
-          success: false,
-          message: "No unposted movie found from TMDB. All top titles have already been broadcasted!",
-        });
-      }
-
-      const year = movie.release_date ? new Date(movie.release_date).getFullYear().toString() : "";
-      const rating = movie.vote_average ? `⭐ ${movie.vote_average.toFixed(1)}/10` : "";
-      const streamLink = `${siteUrl}/movie/${movie.id}`;
-      const posterUrl = movie.poster_path
-        ? `https://image.tmdb.org/t/p/w780${movie.poster_path}`
-        : "";
-
-      // Fetch official YouTube trailer
-      const youtubeTrailerUrl = await fetchMovieTrailer(movie.id);
-
-      const results: Record<string, { success: boolean; message: string }> = {};
-
-      // 3.1 Telegram Broadcast
-      if (settings.telegram?.enabled && settings.telegram?.botToken && settings.telegram?.chatId) {
-        try {
-          const caption = `🎬 *${movie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${movie.overview?.slice(0, 300)}...\n\n🍿 *Watch on StreamHD:* [Click to Stream](${streamLink})\n\n#Movie #${movie.title.replace(/[^\w]/g, "")}`;
-          const inlineButtons: Array<Array<{ text: string; url: string }>> = [
-            [
-              { text: "▶️ Watch Now", url: streamLink },
-              ...(youtubeTrailerUrl ? [{ text: "🎬 Trailer", url: youtubeTrailerUrl }] : []),
-            ],
-            [
-              { text: "💬 Join Channel", url: settings.telegram?.groupLink || "https://t.me" },
-            ],
-          ];
-
-          const res = await fetch(`https://api.telegram.org/bot${settings.telegram.botToken}/sendPhoto`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: settings.telegram.chatId,
-              photo: posterUrl,
-              caption,
-              parse_mode: "Markdown",
-              reply_markup: {
-                inline_keyboard: inlineButtons,
-              },
-            }),
-          });
-          const tgData = await res.json();
-          results.telegram = tgData.ok
-            ? { success: true, message: "Published to Telegram" }
-            : { success: false, message: tgData.description || "Telegram failed" };
-        } catch (e: any) {
-          results.telegram = { success: false, message: e.message };
-        }
-      }
-
-      // 3.2 Bluesky Broadcast
-      if (settings.bluesky?.enabled && settings.bluesky?.identifier && settings.bluesky?.appPassword) {
-        try {
-          const bskyUrl = (settings.bluesky.serviceUrl || "https://bsky.social").replace(/\/$/, "");
-          const sessionRes = await fetch(`${bskyUrl}/xrpc/com.atproto.server.createSession`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              identifier: settings.bluesky.identifier,
-              password: settings.bluesky.appPassword,
-            }),
-          });
-          const session = await sessionRes.json();
-          if (sessionRes.ok && session.accessJwt && session.did) {
-            const bskyPostText = `🎬 Featured Cinema: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 160)}...\n\n🍿 Stream: ${streamLink}${youtubeTrailerUrl ? `\n🎬 Trailer: ${youtubeTrailerUrl}` : ""}`;
-            const recordRes = await fetch(`${bskyUrl}/xrpc/com.atproto.repo.createRecord`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${session.accessJwt}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                repo: session.did,
-                collection: "app.bsky.feed.post",
-                record: {
-                  $type: "app.bsky.feed.post",
-                  text: bskyPostText,
-                  createdAt: new Date().toISOString(),
-                },
-              }),
-            });
-            results.bluesky = recordRes.ok
-              ? { success: true, message: "Published to Bluesky" }
-              : { success: false, message: "Failed to create Bluesky post record" };
-          } else {
-            results.bluesky = { success: false, message: session.message || "Bluesky login failed" };
-          }
-        } catch (e: any) {
-          results.bluesky = { success: false, message: e.message };
-        }
-      }
-
-      // 3.3 Facebook Page Broadcast
-      if (settings.facebook?.enabled && settings.facebook?.pageAccessToken && settings.facebook?.pageId) {
-        try {
-          const fbMessage = `🎬 Cinema Spotlight: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Stream in HD: ${streamLink}${youtubeTrailerUrl ? `\n\n🎬 Watch Official Trailer: ${youtubeTrailerUrl}` : ""}`;
-          const fbRes = await fetch(`https://graph.facebook.com/v19.0/${settings.facebook.pageId}/feed`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: fbMessage,
-              link: streamLink,
-              access_token: settings.facebook.pageAccessToken,
-            }),
-          });
-          const fbData = await fbRes.json();
-          results.facebook = fbData.id
-            ? { success: true, message: `Published to Facebook Page (${fbData.id})` }
-            : { success: false, message: fbData.error?.message || "Facebook post failed" };
-        } catch (e: any) {
-          results.facebook = { success: false, message: e.message };
-        }
-      }
-
-      // 3.4 Tumblr Broadcast (OAuth 1.0a)
-      if (
-        settings.tumblr?.enabled &&
-        settings.tumblr?.consumerKey &&
-        settings.tumblr?.consumerSecret &&
-        settings.tumblr?.token &&
-        settings.tumblr?.tokenSecret &&
-        settings.tumblr?.blogIdentifier
-      ) {
-        try {
-          const tumblrRes = await postMovieToTumblr(
-            {
-              consumerKey: settings.tumblr.consumerKey,
-              consumerSecret: settings.tumblr.consumerSecret,
-              token: settings.tumblr.token,
-              tokenSecret: settings.tumblr.tokenSecret,
-              blogIdentifier: settings.tumblr.blogIdentifier,
-              postState: (settings.tumblr.postState as any) || "published",
-            },
-            {
-              title: movie.title,
-              overview: movie.overview || "",
-              year,
-              rating,
-              posterUrl,
-              streamLink,
-              youtubeTrailerUrl,
-            }
-          );
-          results.tumblr = tumblrRes;
-        } catch (e: any) {
-          results.tumblr = { success: false, message: e.message };
-        }
-      }
-
-      // Track TMDB ID as posted
-      if (!settings.autoPost) settings.autoPost = {};
-      if (!Array.isArray(settings.autoPost.postedTmdbIds)) {
-        settings.autoPost.postedTmdbIds = [];
-      }
-      settings.autoPost.postedTmdbIds.push(movie.id);
-      settings.autoPost.lastPostedAt = new Date();
-      await settings.save();
-
-      const succeededCount = Object.values(results).filter((r) => r.success).length;
-
-      return NextResponse.json({
-        success: true,
-        message: `Broadcasted "${movie.title}" (${year}) via live TMDB bridge!`,
-        movie: {
-          id: movie.id,
-          title: movie.title,
-          year,
-          rating,
-          streamLink,
-          posterUrl,
-          postedAt: settings.autoPost.lastPostedAt,
-        },
-        results,
-        succeededCount,
-      });
+      const outcome = await broadcastNextMovie();
+      return NextResponse.json(outcome, { status: outcome.success ? 200 : 400 });
     }
 
     return NextResponse.json({ success: false, message: "Invalid action" }, { status: 400 });

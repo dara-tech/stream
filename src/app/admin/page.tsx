@@ -222,6 +222,7 @@ export default function AdminPage() {
     intervalMinutes: 30,
     minRating: 7.0,
     postOnlyTopRated: true,
+    lastPostedAt: null as string | null,
   });
   const [nextPostCountdown, setNextPostCountdown] = useState<number | null>(null);
 
@@ -490,6 +491,7 @@ export default function AdminPage() {
             intervalMinutes: autoPost.intervalMinutes || 30,
             minRating: autoPost.minRating ?? 7.0,
             postOnlyTopRated: autoPost.postOnlyTopRated ?? true,
+            lastPostedAt: autoPost.lastPostedAt || null,
           });
         }
         if (stats) {
@@ -972,31 +974,37 @@ export default function AdminPage() {
   const handleTestTelegramBot = () => handleTestChannel("telegram");
   const handlePostNextMovie = handleBroadcastNext;
 
-  // Auto-Publish Countdown & Auto-Trigger Timer
-  const broadcastRef = React.useRef(handleBroadcastNext);
-  broadcastRef.current = handleBroadcastNext;
-
+  // Auto-Publish Countdown (Synchronized with 24/7 server background daemon)
   useEffect(() => {
     if (!autoPostConfig.enabled) {
       setNextPostCountdown(null);
       return;
     }
 
-    // Immediately apply new interval in minutes
-    setNextPostCountdown(autoPostConfig.intervalMinutes * 60);
+    const calculateRemainingSeconds = () => {
+      const intervalSec = Math.max(1, autoPostConfig.intervalMinutes || 30) * 60;
+      if (!autoPostConfig.lastPostedAt) return 0;
+      const lastTime = new Date(autoPostConfig.lastPostedAt).getTime();
+      if (isNaN(lastTime)) return intervalSec;
+      const elapsedSec = Math.floor((Date.now() - lastTime) / 1000);
+      return Math.max(0, intervalSec - elapsedSec);
+    };
+
+    setNextPostCountdown(calculateRemainingSeconds());
 
     const timer = setInterval(() => {
       setNextPostCountdown((prev) => {
         if (prev === null || prev <= 1) {
-          broadcastRef.current();
-          return autoPostConfig.intervalMinutes * 60;
+          // Refresh from server to get new broadcast data and updated lastPostedAt
+          fetchSocial();
+          return Math.max(1, autoPostConfig.intervalMinutes || 30) * 60;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoPostConfig.enabled, autoPostConfig.intervalMinutes]);
+  }, [autoPostConfig.enabled, autoPostConfig.intervalMinutes, autoPostConfig.lastPostedAt, fetchSocial]);
 
   // SEO & Search Console Handlers
   const handleSaveSeo = async (e?: React.FormEvent) => {
