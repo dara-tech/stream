@@ -16,6 +16,34 @@ interface TMDBMovieItem {
 }
 
 /**
+ * Fetches the official YouTube trailer for a given TMDB movie ID
+ */
+async function fetchMovieTrailer(movieId: number): Promise<string | null> {
+  try {
+    const apiKey = TMDB_CONFIG.API_KEY;
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}/videos?api_key=${apiKey}`, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.results || !Array.isArray(data.results)) return null;
+
+    // Prioritize official YouTube trailer, then teaser, then any YouTube video
+    const trailer =
+      data.results.find((v: any) => v.site === "YouTube" && v.type === "Trailer" && v.official) ||
+      data.results.find((v: any) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")) ||
+      data.results.find((v: any) => v.site === "YouTube");
+
+    if (trailer?.key) {
+      return `https://www.youtube.com/watch?v=${trailer.key}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Pure TMDB API Bridge: Fetches next unposted top-rated / trending movie directly from TMDB API
  * No local MongoDB movie storage is needed.
  */
@@ -402,12 +430,25 @@ export async function POST(req: NextRequest) {
         ? `https://image.tmdb.org/t/p/w780${movie.poster_path}`
         : "";
 
+      // Fetch official YouTube trailer
+      const youtubeTrailerUrl = await fetchMovieTrailer(movie.id);
+
       const results: Record<string, { success: boolean; message: string }> = {};
 
       // 3.1 Telegram Broadcast
       if (settings.telegram?.enabled && settings.telegram?.botToken && settings.telegram?.chatId) {
         try {
           const caption = `🎬 *${movie.title}* ${year ? `(${year})` : ""}\n\n${rating}\n\n📖 ${movie.overview?.slice(0, 300)}...\n\n🍿 *Watch on StreamHD:* [Click to Stream](${streamLink})\n\n#Movie #${movie.title.replace(/[^\w]/g, "")}`;
+          const inlineButtons: Array<Array<{ text: string; url: string }>> = [
+            [
+              { text: "▶️ Watch Now", url: streamLink },
+              ...(youtubeTrailerUrl ? [{ text: "🎬 Trailer", url: youtubeTrailerUrl }] : []),
+            ],
+            [
+              { text: "💬 Join Channel", url: settings.telegram?.groupLink || "https://t.me" },
+            ],
+          ];
+
           const res = await fetch(`https://api.telegram.org/bot${settings.telegram.botToken}/sendPhoto`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -417,12 +458,7 @@ export async function POST(req: NextRequest) {
               caption,
               parse_mode: "Markdown",
               reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: "▶️ Watch Now", url: streamLink },
-                    { text: "💬 Join Channel", url: settings.telegram?.groupLink || "https://t.me" },
-                  ],
-                ],
+                inline_keyboard: inlineButtons,
               },
             }),
           });
@@ -449,7 +485,7 @@ export async function POST(req: NextRequest) {
           });
           const session = await sessionRes.json();
           if (sessionRes.ok && session.accessJwt && session.did) {
-            const bskyPostText = `🎬 Featured Cinema: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 180)}...\n\n🍿 Stream: ${streamLink}`;
+            const bskyPostText = `🎬 Featured Cinema: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 160)}...\n\n🍿 Stream: ${streamLink}${youtubeTrailerUrl ? `\n🎬 Trailer: ${youtubeTrailerUrl}` : ""}`;
             const recordRes = await fetch(`${bskyUrl}/xrpc/com.atproto.repo.createRecord`, {
               method: "POST",
               headers: {
@@ -480,7 +516,7 @@ export async function POST(req: NextRequest) {
       // 3.3 Facebook Page Broadcast
       if (settings.facebook?.enabled && settings.facebook?.pageAccessToken && settings.facebook?.pageId) {
         try {
-          const fbMessage = `🎬 Cinema Spotlight: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Stream in HD: ${streamLink}`;
+          const fbMessage = `🎬 Cinema Spotlight: ${movie.title} ${year ? `(${year})` : ""}\n\n${movie.overview?.slice(0, 300)}...\n\n🍿 Stream in HD: ${streamLink}${youtubeTrailerUrl ? `\n\n🎬 Watch Official Trailer: ${youtubeTrailerUrl}` : ""}`;
           const fbRes = await fetch(`https://graph.facebook.com/v19.0/${settings.facebook.pageId}/feed`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -525,6 +561,7 @@ export async function POST(req: NextRequest) {
               rating,
               posterUrl,
               streamLink,
+              youtubeTrailerUrl,
             }
           );
           results.tumblr = tumblrRes;

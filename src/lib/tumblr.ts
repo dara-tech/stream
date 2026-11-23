@@ -139,6 +139,7 @@ export async function postMovieToTumblr(
     rating?: string;
     posterUrl: string;
     streamLink: string;
+    youtubeTrailerUrl?: string | null;
   }
 ): Promise<{ success: boolean; message: string; postId?: string; blogName?: string }> {
   try {
@@ -165,27 +166,47 @@ export async function postMovieToTumblr(
 
     const postState = config.postState || "published";
 
-    const imageHtml = movie.posterUrl
-      ? `<p><img src="${movie.posterUrl}" alt="${movie.title}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" /></p>`
-      : "";
-
-    const htmlBody = `
-      ${imageHtml}
-      ${movie.rating ? `<p>⭐ <strong>Rating:</strong> ${movie.rating}</p>` : ""}
-      <p>${movie.overview}</p>
-      <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Stream on StreamHD</strong></a></p>
-    `.trim();
-
-    // Anti-ban title & tags: never use spam keywords like "Watch Online Free", "Free Stream", etc.
+    // Clean, natural title to prevent anti-spam bot suspensions
     const safeTitle = `🎬 ${movie.title} ${movie.year ? `(${movie.year})` : ""}`;
 
-    const postParams: Record<string, any> = {
-      type: "text",
-      title: safeTitle,
-      body: htmlBody,
-      tags: "movies, cinema, film, watchlist, streamhd, entertainment",
-      state: postState,
-    };
+    let postParams: Record<string, any>;
+
+    if (movie.youtubeTrailerUrl) {
+      // Native YouTube Video Post - 100% anti-bot safe, renders an interactive player right in Tumblr feed!
+      const captionHtml = `
+        <p>${movie.overview}</p>
+        ${movie.rating ? `<p>⭐ <strong>Rating:</strong> ${movie.rating}</p>` : ""}
+        <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Stream on StreamHD</strong></a></p>
+      `.trim();
+
+      postParams = {
+        type: "video",
+        embed: movie.youtubeTrailerUrl,
+        caption: captionHtml,
+        tags: `movies, cinema, film, trailer, ${movie.title.toLowerCase().replace(/[^\w\s]/g, "")}, streamhd`,
+        state: postState,
+      };
+    } else {
+      // Photo / Poster Image Post fallback
+      const imageHtml = movie.posterUrl
+        ? `<p><img src="${movie.posterUrl}" alt="${movie.title}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" /></p>`
+        : "";
+
+      const htmlBody = `
+        ${imageHtml}
+        ${movie.rating ? `<p>⭐ <strong>Rating:</strong> ${movie.rating}</p>` : ""}
+        <p>${movie.overview}</p>
+        <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Stream on StreamHD</strong></a></p>
+      `.trim();
+
+      postParams = {
+        type: "text",
+        title: safeTitle,
+        body: htmlBody,
+        tags: "movies, cinema, film, watchlist, streamhd, entertainment",
+        state: postState,
+      };
+    }
 
     let res: any;
     try {
