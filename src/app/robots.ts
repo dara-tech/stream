@@ -4,7 +4,7 @@ export default function robots(): MetadataRoute.Robots {
   const siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ||
     (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
-    "https://moviestream.cc"
+    "https://www.streamhd.to"
   ).replace(/\/+$/, "");
 
   return {
@@ -28,9 +28,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: [
-      `${siteUrl}/sitemap/0.xml`,
-      `${siteUrl}/sitemap/1.xml`,
-    ],
+    sitemap: `${siteUrl}/sitemap.xml`,
   };
 }
