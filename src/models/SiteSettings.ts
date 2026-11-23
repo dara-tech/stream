@@ -14,6 +14,12 @@ export interface ICustomServer {
 export interface ISiteSettings extends Document {
   siteName: string;
   siteDescription?: string;
+  logo?: {
+    text?: string;
+    imageUrl?: string;
+    subtitle?: string;
+    color?: string;
+  };
   streaming?: {
     defaultServerId?: string;
     disabledServerIds?: string[];
@@ -85,6 +91,12 @@ const SiteSettingsSchema = new Schema<ISiteSettings>(
   {
     siteName: { type: String, default: "StreamFlix" },
     siteDescription: { type: String },
+    logo: {
+      text: { type: String, default: "STREAMFLIX" },
+      imageUrl: { type: String, default: "" },
+      subtitle: { type: String, default: "Ultra HD & 4K Streaming Platform" },
+      color: { type: String, default: "#E50914" },
+    },
     streaming: {
       defaultServerId: { type: String, default: "moviepire" },
       disabledServerIds: { type: [String], default: [] },

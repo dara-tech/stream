@@ -35,6 +35,12 @@ export async function GET() {
       success: true,
       data: {
         seo: settings.seo || {},
+        logo: settings.logo || {
+          text: "STREAMFLIX",
+          imageUrl: "",
+          subtitle: "Ultra HD & 4K Streaming Platform",
+          color: "#E50914",
+        },
         stats: {
           totalAvailableMovies,
           sitemapUrl: `${siteUrl}/sitemap.xml`,
@@ -87,7 +93,25 @@ export async function POST(req: NextRequest) {
         bingVerification,
         ogImage,
         twitterHandle,
+        logoText,
+        logoImageUrl,
+        logoSubtitle,
+        logoColor,
       } = body;
+
+      if (!settings.logo) {
+        settings.logo = {
+          text: "STREAMFLIX",
+          imageUrl: "",
+          subtitle: "Ultra HD & 4K Streaming Platform",
+          color: "#E50914",
+        };
+      }
+
+      if (logoText !== undefined) settings.logo.text = logoText.trim();
+      if (logoImageUrl !== undefined) settings.logo.imageUrl = logoImageUrl.trim();
+      if (logoSubtitle !== undefined) settings.logo.subtitle = logoSubtitle.trim();
+      if (logoColor !== undefined) settings.logo.color = logoColor.trim();
 
       if (siteTitle !== undefined) settings.seo.siteTitle = siteTitle.trim();
       if (siteDescription !== undefined) settings.seo.siteDescription = siteDescription.trim();
@@ -103,8 +127,11 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "SEO and Search Engine settings saved successfully!",
-        data: settings.seo,
+        message: "SEO and Brand Logo settings saved successfully!",
+        data: {
+          seo: settings.seo,
+          logo: settings.logo,
+        },
       });
     }
 

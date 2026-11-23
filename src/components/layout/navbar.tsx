@@ -17,6 +17,28 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { activeTab, setActiveTab, setIsSearchOpen } = useMovie();
+  const [logo, setLogo] = useState({
+    text: "STREAMFLIX",
+    imageUrl: "",
+    color: "#E50914",
+  });
+
+  useEffect(() => {
+    async function loadLogo() {
+      try {
+        const res = await fetch("/api/settings");
+        const json = await res.json();
+        if (json.success && json.logo) {
+          setLogo({
+            text: json.logo.text || "STREAMFLIX",
+            imageUrl: json.logo.imageUrl || "",
+            color: json.logo.color || "#E50914",
+          });
+        }
+      } catch {}
+    }
+    loadLogo();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,9 +60,20 @@ export function Navbar() {
       {/* Left: Netflix Logo & Nav Links */}
       <div className="flex items-center gap-6 lg:gap-8">
         <Link href="/" className="flex items-center">
-          <span className="text-[#E50914] text-2xl md:text-3xl font-black tracking-tight uppercase select-none drop-shadow">
-            NETFLIX
-          </span>
+          {logo.imageUrl ? (
+            <img
+              src={logo.imageUrl}
+              alt={logo.text || "Logo"}
+              className="h-7 md:h-8 max-w-[160px] object-contain"
+            />
+          ) : (
+            <span
+              style={{ color: logo.color || "#E50914" }}
+              className="text-2xl md:text-3xl font-black tracking-tight uppercase select-none drop-shadow"
+            >
+              {logo.text || "STREAMFLIX"}
+            </span>
+          )}
         </Link>
 
         {/* Desktop Nav Items (No 'My Netflix') */}
