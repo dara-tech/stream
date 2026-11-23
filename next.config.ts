@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: "/sitemap/:path*.xml",
+        destination: "/sitemap.xml",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
