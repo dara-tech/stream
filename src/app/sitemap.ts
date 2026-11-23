@@ -14,24 +14,37 @@ function toSlug(title: string): string {
 }
 
 /**
- * Validates any date string or object into a strict W3C ISO 8601 string.
- * Completely eliminates "Invalid date" Google Search Console errors.
+ * Returns a strict W3C Date (YYYY-MM-DD) recommended by Google Search Console.
+ * Prevents ancient date rejections (e.g., 1957 film release dates causing out-of-range lastmod errors).
  */
-function toSafeIsoDate(rawDate?: string | Date | null): string {
-  if (!rawDate) return new Date().toISOString();
+function getTodayDateString(): string {
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function toSafeDateString(rawDate?: string | Date | null): string {
+  const fallback = getTodayDateString();
+  if (!rawDate) return fallback;
+
   try {
     const d = rawDate instanceof Date ? rawDate : new Date(rawDate);
-    if (isNaN(d.getTime())) {
-      return new Date().toISOString();
-    }
+    if (isNaN(d.getTime())) return fallback;
+
     const year = d.getUTCFullYear();
-    // Guard against malformed years (e.g. 0000 or ancient/extreme dates)
-    if (year < 1900 || year > 2035) {
-      return new Date().toISOString();
+    const currentYear = new Date().getUTCFullYear();
+    // A webpage URL on StreamHD cannot have been last modified before the web or decades ago (e.g. 1957)
+    if (year < 2000 || year > currentYear + 1) {
+      return fallback;
     }
-    return d.toISOString();
+
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${year}-${mm}-${dd}`;
   } catch {
-    return new Date().toISOString();
+    return fallback;
   }
 }
 
@@ -56,19 +69,19 @@ async function getBaseSiteUrl(): Promise<string> {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = await getBaseSiteUrl();
-  const currentIsoDate = new Date().toISOString();
+  const todayDate = getTodayDateString();
 
   // 1. Static high-priority pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}`,
-      lastModified: currentIsoDate,
+      lastModified: todayDate,
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
       url: `${siteUrl}/search`,
-      lastModified: currentIsoDate,
+      lastModified: todayDate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
@@ -77,7 +90,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 2. Programmatic Genre Hubs
   const genreEntries: MetadataRoute.Sitemap = Object.entries(GENRE_MAP).map(([_, name]) => ({
     url: `${siteUrl}/genre/${toSlug(name)}`,
-    lastModified: currentIsoDate,
+    lastModified: todayDate,
     changeFrequency: "weekly",
     priority: 0.9,
   }));
@@ -87,7 +100,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4, 2020, 2019, 2018];
   const yearEntries: MetadataRoute.Sitemap = years.map((yr) => ({
     url: `${siteUrl}/year/${yr}`,
-    lastModified: currentIsoDate,
+    lastModified: todayDate,
     changeFrequency: "weekly",
     priority: 0.85,
   }));
@@ -118,7 +131,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
       mediaMap.set(key, {
         url: `${siteUrl}${path}`,
-        lastModified: toSafeIsoDate(rawDate),
+        lastModified: toSafeDateString(rawDate),
         changeFrequency: "weekly",
         priority: 0.9,
       });
