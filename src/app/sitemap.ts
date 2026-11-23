@@ -2,14 +2,22 @@ import type { MetadataRoute } from "next";
 import { connectToDatabase } from "@/lib/mongodb";
 import { MovieModel } from "@/models/Movie";
 import { SiteSettings } from "@/models/SiteSettings";
+import { tmdbService } from "@/services/tmdb.service";
 
 export const revalidate = 3600; // Cache and revalidate sitemap once per hour
+
+function toSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let siteUrl = (
     process.env.NEXT_PUBLIC_SITE_URL ||
     (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
-    "https://streamhd.to"
+    "https://moviestream.cc"
   ).replace(/\/+$/, "");
 
   try {
@@ -24,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const currentDate = new Date();
 
-  // Static high-priority pages
+  // Static high-priority pages (only existing valid routes)
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}`,
@@ -32,56 +40,60 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 1.0,
     },
-    {
-      url: `${siteUrl}/movies`,
-      lastModified: currentDate,
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${siteUrl}/tv`,
-      lastModified: currentDate,
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${siteUrl}/latest`,
-      lastModified: currentDate,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
   ];
 
-  // Dynamic movie routes from MongoDB (Top available movies sorted by recent/rating)
-  let movieRoutes: MetadataRoute.Sitemap = [];
+  // Dynamic movie routes
+  const movieUrlMap = new Map<number, MetadataRoute.Sitemap[number]>();
+
+  // 1. Fetch available movies from MongoDB
   try {
     await connectToDatabase();
-    const movies = await MovieModel.find({ isAvailable: true })
+    const dbMovies = await MovieModel.find({ isAvailable: true })
       .select("tmdbId title releaseDate updatedAt voteAverage")
       .sort({ updatedAt: -1, releaseDate: -1 })
       .limit(2000)
       .lean();
 
-    movieRoutes = movies.map((m: any) => {
-      const slug = m.title
-        ? encodeURIComponent(
-            m.title
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-|-$/g, "")
-          )
-        : m.tmdbId;
-
-      return {
+    for (const m of dbMovies) {
+      if (!m.tmdbId) continue;
+      const slug = m.title ? toSlug(m.title) : "";
+      movieUrlMap.set(m.tmdbId, {
         url: `${siteUrl}/movie/${m.tmdbId}${slug ? `-${slug}` : ""}`,
         lastModified: m.updatedAt ? new Date(m.updatedAt) : currentDate,
-        changeFrequency: "weekly" as const,
+        changeFrequency: "weekly",
         priority: 0.8,
-      };
-    });
+      });
+    }
   } catch (err: any) {
-    console.warn("Sitemap: movie catalog routes notice (serving static routes):", err?.message || err);
+    console.warn("Sitemap: DB movie catalog notice:", err?.message || err);
   }
+
+  // 2. Supplement with high-traffic trending and popular movies from TMDB if catalog is sparse
+  try {
+    const [trending, popular, topRated] = await Promise.all([
+      tmdbService.getTrending().catch(() => []),
+      tmdbService.getPopularMovies().catch(() => []),
+      tmdbService.getTopRatedMovies().catch(() => []),
+    ]);
+
+    for (const item of [...trending, ...popular, ...topRated]) {
+      if (!item.id || movieUrlMap.has(item.id)) continue;
+      const title = item.title || item.name || "";
+      const slug = title ? toSlug(title) : "";
+      const releaseDate = item.release_date || item.first_air_date;
+
+      movieUrlMap.set(item.id, {
+        url: `${siteUrl}/movie/${item.id}${slug ? `-${slug}` : ""}`,
+        lastModified: releaseDate ? new Date(releaseDate) : currentDate,
+        changeFrequency: "weekly",
+        priority: 0.8,
+      });
+    }
+  } catch (err: any) {
+    console.warn("Sitemap: TMDB supplemental notice:", err?.message || err);
+  }
+
+  const movieRoutes = Array.from(movieUrlMap.values());
 
   return [...staticPages, ...movieRoutes];
 }

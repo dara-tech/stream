@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { X, Play, Plus, Check, Star, ThumbsUp, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { X, Play, Plus, Check, Star, ThumbsUp, ChevronDown, ExternalLink } from "lucide-react";
 import { useMovie } from "@/context/movie-context";
 import { getImageUrl } from "@/config/tmdb";
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,16 @@ export function MovieModal() {
                 >
                   Trailer
                 </button>
+
+                <Link
+                  href={`/movie/${selectedMovie.id}`}
+                  onClick={closeModal}
+                  className="px-3.5 py-2 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-white/15 text-xs font-semibold tracking-wider uppercase transition flex items-center gap-1.5 cursor-pointer"
+                  title="Open Dedicated Movie Page"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Full Page</span>
+                </Link>
 
                 <button
                   onClick={() => toggleMyList(selectedMovie)}

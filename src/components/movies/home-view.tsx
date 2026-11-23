@@ -93,6 +93,7 @@ export function HomeView({
 
   return (
     <>
+      <h1 className="sr-only">StreamFlix - Watch Movies &amp; TV Shows Online Free in Full HD</h1>
       <Navbar />
       {content}
     </>

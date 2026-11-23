@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Movie } from "@/types/tmdb";
@@ -10,6 +11,13 @@ import { useMovie } from "@/context/movie-context";
 interface Top10RowProps {
   title?: string;
   movies: Movie[];
+}
+
+function toSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 export function Top10Row({ title = "Top 10 Movies Now", movies }: Top10RowProps) {
@@ -56,17 +64,28 @@ export function Top10Row({ title = "Top 10 Movies Now", movies }: Top10RowProps)
           {top10.map((movie, index) => {
             const posterUrl = getImageUrl(movie.poster_path, "posterSmall");
             const rank = index + 1;
+            const movieTitle = movie.title || movie.name || "Top 10";
+            const slug = toSlug(movieTitle);
+            const movieHref = `/movie/${movie.id}${slug ? `-${slug}` : ""}`;
+
             return (
-              <div
+              <Link
                 key={`${movie.id}-${index}`}
-                onClick={() => openModal(movie)}
-                className="relative flex-none cursor-pointer group/card select-none"
+                href={movieHref}
+                onClick={(e) => {
+                  if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                    e.preventDefault();
+                    openModal(movie);
+                  }
+                }}
+                className="relative flex-none cursor-pointer group/card select-none block"
+                title={`#${rank} ${movieTitle} - Watch Free on StreamFlix`}
               >
-                {/* Sharp Vertical Poster (NOT rounded - matching Dribbble reference) */}
+                {/* Sharp Vertical Poster */}
                 <div className="relative w-[130px] sm:w-[160px] md:w-[185px] aspect-[2/3] overflow-hidden z-10 shadow-xl border border-white/5 group-hover/card:border-white/30 transition-all duration-200 bg-neutral-900 rounded-none">
                   <Image
                     src={posterUrl}
-                    alt={movie.title || movie.name || "Top 10"}
+                    alt={`#${rank} ${movieTitle} - Watch Free Online HD - StreamFlix`}
                     fill
                     sizes="(max-width: 768px) 160px, 185px"
                     className="object-cover group-hover/card:scale-105 transition-transform duration-300"
@@ -75,7 +94,7 @@ export function Top10Row({ title = "Top 10 Movies Now", movies }: Top10RowProps)
                   {/* Gradient bottom */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
 
-                  {/* Top-Left Outlined Number (1, 2, 3...) matching Dribbble reference */}
+                  {/* Top-Left Outlined Number (1, 2, 3...) */}
                   <div className="absolute top-1 left-2 z-20 pointer-events-none">
                     <span
                       className="font-black text-4xl sm:text-5xl md:text-6xl leading-none select-none tracking-tighter"
@@ -92,11 +111,11 @@ export function Top10Row({ title = "Top 10 Movies Now", movies }: Top10RowProps)
                   {/* Title overlay at bottom of poster */}
                   <div className="absolute bottom-2 left-2 right-2 z-20">
                     <p className="text-white text-xs font-bold truncate drop-shadow text-center">
-                      {movie.title || movie.name}
+                      {movieTitle}
                     </p>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

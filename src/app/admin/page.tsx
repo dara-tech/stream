@@ -995,8 +995,10 @@ export default function AdminPage() {
     const timer = setInterval(() => {
       setNextPostCountdown((prev) => {
         if (prev === null || prev <= 1) {
-          // Refresh from server to get new broadcast data and updated lastPostedAt
-          fetchSocial();
+          // Trigger broadcast & refresh social data
+          fetch("/api/cron/autopost")
+            .then(() => fetchSocial())
+            .catch(() => {});
           return Math.max(1, autoPostConfig.intervalMinutes || 30) * 60;
         }
         return prev - 1;

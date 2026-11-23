@@ -107,9 +107,9 @@ export function MoviePlayerClient({ movie, defaultServerId }: MoviePlayerClientP
             <span className="hidden sm:inline">Back to Catalog</span>
           </Link>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md">
+            <span className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md">
               {movie.title}
-            </h1>
+            </span>
             {releaseYear && (
               <span className="text-xs font-mono text-neutral-400">({releaseYear})</span>
             )}
@@ -203,7 +203,7 @@ export function MoviePlayerClient({ movie, defaultServerId }: MoviePlayerClientP
             <div className="relative aspect-[2/3] w-full max-w-[200px] mx-auto md:mx-0 border border-white/10 overflow-hidden shadow-lg">
               <Image
                 src={getImageUrl(movie.poster_path, "poster")}
-                alt={movie.title}
+                alt={`Watch ${movie.title}${releaseYear ? ` (${releaseYear})` : ""} Online Free in HD - StreamFlix`}
                 fill
                 className="object-cover"
                 priority
@@ -214,7 +214,7 @@ export function MoviePlayerClient({ movie, defaultServerId }: MoviePlayerClientP
           {/* Right: Details & Synopsis */}
           <div className="md:col-span-3 space-y-4">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black text-white">{movie.title}</h2>
+              <h1 className="text-xl sm:text-2xl font-black text-white">{movie.title}</h1>
               {movie.tagline && (
                 <p className="text-xs italic text-neutral-400 mt-1 font-mono">"{movie.tagline}"</p>
               )}

@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
+import { checkAndRunAutoPost } from "@/lib/server-scheduler";
 
 export async function GET() {
   try {
+    // Traffic-driven background auto-post check (ensures serverless Vercel auto-posts fire on time)
+    checkAndRunAutoPost().catch(() => {});
+
     await connectToDatabase();
     const settings = await SiteSettings.findOne().lean();
     return NextResponse.json(

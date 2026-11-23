@@ -7,11 +7,12 @@ import { VideoPlayerModal } from "@/components/movies/video-player-modal";
 import { StreamPlayerModal } from "@/components/movies/stream-player-modal";
 import { SearchOverlay } from "@/components/movies/search-overlay";
 import { AdInjector } from "@/components/ads/ad-injector";
+import { Footer } from "@/components/layout/footer";
 
 const siteUrl = (
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "") ||
-  "https://streamhd.to"
+  "https://moviestream.cc"
 ).replace(/\/+$/, "");
 
 export const viewport: Viewport = {
@@ -27,16 +28,17 @@ export const metadata: Metadata = {
     template: "%s | StreamFlix",
   },
   description:
-    "Stream the latest movies and TV series online in HD and 4K without ads. Explore thousands of titles, stream trailers, and watch with ultra-fast servers.",
+    "Stream thousands of full movies and TV series online for free in Ultra HD and 4K with English subtitles. No subscription or sign up required on StreamFlix.",
   keywords: [
-    "watch movies online",
-    "free streaming",
-    "stream movies free",
-    "watch tv shows online",
+    "watch movies online free",
+    "free movie streaming site",
+    "stream full movie hd",
+    "watch tv shows online free",
     "hd movies",
-    "4k movies",
-    "netflix clone",
+    "4k movies online",
+    "watch movies no sign up",
     "streamflix",
+    "free streaming movies",
   ],
   authors: [{ name: "StreamFlix Team" }],
   creator: "StreamFlix",
@@ -50,11 +52,11 @@ export const metadata: Metadata = {
     canonical: siteUrl,
   },
   openGraph: {
-    title: "StreamHD - Watch TV Shows & Movies Online Free in HD",
+    title: "StreamFlix - Watch TV Shows & Movies Online Free in HD",
     description:
-      "Stream the latest movies and TV series online in HD and 4K. Instant playback with multiple high-speed servers.",
+      "Stream the latest full movies and TV series online in HD and 4K. Instant playback with multiple high-speed servers and subtitles.",
     url: siteUrl,
-    siteName: "StreamHD",
+    siteName: "StreamFlix",
     images: [
       {
         url: `${siteUrl}/og-image.jpg`,
@@ -68,7 +70,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "StreamHD - Watch TV Shows & Movies Online Free in HD",
+    title: "StreamFlix - Watch TV Shows & Movies Online Free in HD",
     description:
       "Stream the latest movies and TV series online in HD and 4K with multiple high-speed servers.",
     creator: "@StreamFlix",
@@ -124,6 +126,7 @@ export default function RootLayout({
           <VideoPlayerModal />
           <SearchOverlay />
         </MovieProvider>
+        <Footer />
         <AdInjector />
       </body>
     </html>

@@ -86,9 +86,9 @@ export function HeroBanner({ movies }: HeroBannerProps) {
       {/* Bottom Content Area */}
       <div className="absolute bottom-8 left-6 md:bottom-16 md:left-12 max-w-xl lg:max-w-2xl z-20 space-y-4">
         {/* Title */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-none text-white drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)] uppercase">
+        <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-none text-white drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)] uppercase">
           {title}
-        </h1>
+        </h2>
 
         {/* Metadata Line (ACTION & ADVENTURE • 2026 • PG-13 • 1H 52M) */}
         <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-bold text-neutral-300 uppercase tracking-wider">

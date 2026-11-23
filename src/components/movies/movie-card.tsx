@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import Image from "next/image";
 import { Movie } from "@/types/tmdb";
 import { getImageUrl } from "@/config/tmdb";
@@ -10,23 +11,39 @@ interface MovieCardProps {
   movie: Movie;
 }
 
+function toSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export function MovieCard({ movie }: MovieCardProps) {
   const { openModal } = useMovie();
 
   const title = movie.title || movie.name || "Untitled";
   const posterUrl = getImageUrl(movie.poster_path || movie.backdrop_path, "poster");
   const releaseYear = (movie.release_date || movie.first_air_date || "").slice(0, 4) || "2026";
+  const slug = toSlug(title);
+  const movieHref = `/movie/${movie.id}${slug ? `-${slug}` : ""}`;
 
   return (
-    <div
-      onClick={() => openModal(movie)}
-      className="group relative flex-none w-[130px] sm:w-[160px] md:w-[185px] lg:w-[195px] cursor-pointer select-none"
+    <Link
+      href={movieHref}
+      onClick={(e) => {
+        if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+          e.preventDefault();
+          openModal(movie);
+        }
+      }}
+      className="group relative flex-none w-[130px] sm:w-[160px] md:w-[185px] lg:w-[195px] cursor-pointer select-none block"
+      title={`Watch ${title} (${releaseYear}) Online Free`}
     >
       {/* Minimal Sharp Vertical Poster Card */}
       <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900 border border-white/10 shadow-md transition-all duration-200 group-hover:border-white/35 group-hover:shadow-[0_12px_28px_rgba(0,0,0,0.85)] rounded-none">
         <Image
           src={posterUrl}
-          alt={title}
+          alt={`Watch ${title} (${releaseYear}) Full Movie Online Free - StreamFlix`}
           fill
           sizes="(max-width: 768px) 160px, 200px"
           className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
@@ -42,6 +59,6 @@ export function MovieCard({ movie }: MovieCardProps) {
           </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
