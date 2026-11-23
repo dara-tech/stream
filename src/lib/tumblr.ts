@@ -145,32 +145,26 @@ export async function postMovieToTumblr(
     const cleanBlog = config.blogIdentifier.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const endpoint = `https://api.tumblr.com/v2/blog/${cleanBlog}/post`;
 
+    const postState = config.postState || "published";
+
+    const imageHtml = movie.posterUrl
+      ? `<p><img src="${movie.posterUrl}" alt="${movie.title}" style="max-width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);" /></p>`
+      : "";
+
     const htmlBody = `
-      <p><strong>🍿 Stream Now:</strong> <a href="${movie.streamLink}" target="_blank">${movie.title} ${movie.year ? `(${movie.year})` : ""}</a></p>
-      ${movie.rating ? `<p><strong>Rating:</strong> ${movie.rating}</p>` : ""}
+      ${imageHtml}
+      ${movie.rating ? `<p>⭐ <strong>Rating:</strong> ${movie.rating}</p>` : ""}
       <p>${movie.overview}</p>
-      <p><a href="${movie.streamLink}" target="_blank">👉 <strong>Watch Full Movie in HD on StreamHD</strong></a></p>
+      <p>🍿 <a href="${movie.streamLink}" target="_blank"><strong>Watch Full Movie Online in HD on StreamHD</strong></a></p>
     `.trim();
 
-    const postState = config.postState || "draft";
-
-    // Prefer photo post if poster URL is available
-    const postParams: Record<string, any> = movie.posterUrl
-      ? {
-          type: "photo",
-          source: movie.posterUrl,
-          caption: htmlBody,
-          link: movie.streamLink,
-          tags: "movies, streaming, streamhd, cinema, watch online, hd",
-          state: postState,
-        }
-      : {
-          type: "text",
-          title: `🎬 ${movie.title} ${movie.year ? `(${movie.year})` : ""} - Watch Online Free`,
-          body: htmlBody,
-          tags: "movies, streaming, streamhd, cinema, watch online, hd",
-          state: postState,
-        };
+    const postParams: Record<string, any> = {
+      type: "text",
+      title: `🎬 ${movie.title} ${movie.year ? `(${movie.year})` : ""} - Watch Online Free`,
+      body: htmlBody,
+      tags: "movies, streaming, streamhd, cinema, watch online, hd",
+      state: postState,
+    };
 
     const res = await requestTumblrOAuth("POST", endpoint, config, postParams);
     const id = res?.response?.id_string || res?.response?.id;
@@ -179,10 +173,10 @@ export async function postMovieToTumblr(
       success: true,
       message:
         postState === "draft"
-          ? `Saved to Tumblr Drafts (@${cleanBlog}) - 100% Safe from anti-bot flags!`
+          ? `Saved to Tumblr Drafts (@${cleanBlog})`
           : postState === "queue"
           ? `Added to Tumblr Queue (@${cleanBlog})`
-          : `Published to Tumblr (@${cleanBlog})`,
+          : `Published Live to Tumblr (@${cleanBlog})`,
       postId: String(id || ""),
     };
   } catch (error: any) {
