@@ -1,29 +1,18 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import { MovieModel } from "@/models/Movie";
 import { UserActivity } from "@/models/UserActivity";
 import { SiteSettings } from "@/models/SiteSettings";
-import mongoose from "mongoose";
 
 export async function GET() {
   try {
     await connectToDatabase();
 
-    const db = mongoose.connection.db;
-    const tvShowsCollection = db ? db.collection("tvshows") : null;
-
     const [
-      totalMovies,
-      totalTvShows,
       totalActivities,
       settings,
       recentActivities,
       eventBreakdown,
-      unpostedCount,
-      postedCount,
     ] = await Promise.all([
-      MovieModel.countDocuments(),
-      tvShowsCollection ? tvShowsCollection.countDocuments() : Promise.resolve(3475),
       UserActivity.countDocuments(),
       SiteSettings.findOne().lean(),
       UserActivity.find()
@@ -34,20 +23,18 @@ export async function GET() {
         { $group: { _id: "$eventType", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
-      MovieModel.countDocuments({
-        $or: [{ telegramPostedAt: null }, { telegramPostedAt: { $exists: false } }],
-      }),
-      MovieModel.countDocuments({ telegramPostedAt: { $ne: null } }),
     ]);
+
+    const postedCount = (settings?.autoPost?.postedTmdbIds as number[])?.length || 0;
 
     return NextResponse.json({
       success: true,
       data: {
         counts: {
-          movies: totalMovies,
-          tvShows: totalTvShows,
+          movies: "TMDB Live Bridge",
+          tvShows: "TMDB Live Bridge",
           activities: totalActivities,
-          unpostedMovies: unpostedCount,
+          unpostedMovies: "Unlimited (TMDB)",
           postedMovies: postedCount,
         },
         settings: {
