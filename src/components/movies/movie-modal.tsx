@@ -93,7 +93,7 @@ export function MovieModal() {
   const similarList = movieDetails?.similar?.results?.filter((m) => m.poster_path || m.backdrop_path)?.slice(0, 6) || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
       {/* Backdrop click to close */}
       <div className="fixed inset-0" onClick={closeModal} />
 
@@ -157,10 +157,10 @@ export function MovieModal() {
                 </button>
 
                 <Link
-                  href={`/movie/${selectedMovie.id}`}
+                  href={isTv ? `/series/${selectedMovie.id}` : `/movie/${selectedMovie.id}`}
                   onClick={closeModal}
                   className="px-3.5 py-2 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white border border-white/15 text-xs font-semibold tracking-wider uppercase transition flex items-center gap-1.5 cursor-pointer"
-                  title="Open Dedicated Movie Page"
+                  title={isTv ? "Open Dedicated Series Page" : "Open Dedicated Movie Page"}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>Full Page</span>

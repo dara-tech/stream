@@ -62,17 +62,29 @@ export async function generateMetadata({ params }: SeriesPageProps): Promise<Met
     ? `https://image.tmdb.org/t/p/w780${series.poster_path}`
     : `${siteUrl}/og-image.jpg`;
 
+  const multiLangKeywords = [
+    // English
+    `watch ${title} online free`,
+    `stream ${title} all episodes`,
+    `${title} season 1`,
+    `${title} full series free`,
+    `${title} english subtitles`,
+    // Spanish
+    `ver serie ${title} online gratis`,
+    `ver ${title} temporadas completas español latino`,
+    `${title} serie completa hd`,
+    // French
+    `regarder serie ${title} streaming vf gratuit`,
+    `${title} tous les episodes streaming`,
+    // Portuguese
+    `assistir ${title} todas as temporadas dublado gratis`,
+    "streamflix series",
+  ];
+
   return {
     title: pageTitle,
     description,
-    keywords: [
-      `watch ${title} online free`,
-      `stream ${title} all episodes`,
-      `${title} season 1`,
-      `${title} full series free`,
-      `${title} english subtitles`,
-      "streamflix series",
-    ].join(", "),
+    keywords: multiLangKeywords.join(", "),
     openGraph: {
       title: pageTitle,
       description,
@@ -80,6 +92,8 @@ export async function generateMetadata({ params }: SeriesPageProps): Promise<Met
       siteName: "StreamFlix",
       type: "video.tv_show",
       images: [{ url: image, width: 1280, height: 720, alt: title }],
+      locale: "en_US",
+      alternateLocale: ["es_ES", "es_MX", "fr_FR", "pt_BR", "de_DE"],
     },
     twitter: {
       card: "summary_large_image",
@@ -116,6 +130,12 @@ export default async function SeriesPage({ params }: SeriesPageProps) {
         "@id": `${siteUrl}/series/${tmdbId}#series`,
         url: `${siteUrl}/series/${tmdbId}${slug ? `-${slug}` : ""}`,
         name: title,
+        alternateName: [
+          `Ver Serie ${title} Online Gratis en Español Latino`,
+          `Regarder Série ${title} Streaming VF Gratuit`,
+          `Assistir ${title} Série Completa Dublado Grátis`,
+        ],
+        inLanguage: ["en", "es", "fr", "pt", "de"],
         description: series.overview || `Watch ${title} full series online free on StreamFlix.`,
         image: series.poster_path ? `https://image.tmdb.org/t/p/w780${series.poster_path}` : `${siteUrl}/og-image.jpg`,
         startDate: series.first_air_date || undefined,

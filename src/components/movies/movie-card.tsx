@@ -21,11 +21,17 @@ function toSlug(title: string): string {
 export function MovieCard({ movie }: MovieCardProps) {
   const { openModal } = useMovie();
 
+  const isTv =
+    movie.media_type === "tv" ||
+    Boolean(movie.first_air_date) ||
+    (!movie.title && Boolean(movie.name));
   const title = movie.title || movie.name || "Untitled";
   const posterUrl = getImageUrl(movie.poster_path || movie.backdrop_path, "poster");
   const releaseYear = (movie.release_date || movie.first_air_date || "").slice(0, 4) || "2026";
   const slug = toSlug(title);
-  const movieHref = `/movie/${movie.id}${slug ? `-${slug}` : ""}`;
+  const movieHref = isTv
+    ? `/series/${movie.id}${slug ? `-${slug}` : ""}`
+    : `/movie/${movie.id}${slug ? `-${slug}` : ""}`;
 
   return (
     <Link

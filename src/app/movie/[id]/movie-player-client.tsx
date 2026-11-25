@@ -14,6 +14,7 @@ import {
   Share2,
   Film,
   Check,
+  Globe,
 } from "lucide-react";
 import { STREAM_SERVERS, StreamServerOption, buildStreamUrl } from "@/services/streaming.service";
 import { MovieDetails } from "@/types/tmdb";
@@ -192,6 +193,22 @@ export function MoviePlayerClient({ movie, defaultServerId }: MoviePlayerClientP
                 <Maximize2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Fullscreen</span>
               </button>
+            </div>
+          </div>
+
+          {/* Multi-Language Audio & Subtitles Indicator Bar */}
+          <div className="bg-[#111] border border-white/5 px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <Globe className="w-3.5 h-3.5 text-[#E50914]" />
+              <span className="font-semibold text-neutral-300">Multi-Language Audio &amp; Subtitles:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇺🇸 EN (Original)</span>
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇪🇸 ES (Latino)</span>
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇫🇷 FR (VF)</span>
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇧🇷 PT (BR)</span>
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇩🇪 DE</span>
+              <span className="px-2 py-0.5 bg-neutral-900 border border-white/10 text-neutral-300">🇮🇹 IT</span>
             </div>
           </div>
         </div>

@@ -124,6 +124,7 @@ export function MovieProvider({ children }: { children: React.ReactNode }) {
   };
 
   const openModal = async (movie: Movie) => {
+    setIsSearchOpen(false);
     const isTv = isTvShow(movie);
     const initialType: "movie" | "tv" = isTv ? "tv" : "movie";
     const movieWithMedia = { ...movie, media_type: initialType };

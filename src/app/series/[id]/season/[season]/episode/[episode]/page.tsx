@@ -65,16 +65,26 @@ export async function generateMetadata({ params }: EpisodePageProps): Promise<Me
     ? `https://image.tmdb.org/t/p/w1280${series.backdrop_path}`
     : `${siteUrl}/og-image.jpg`;
 
+  const multiLangKeywords = [
+    // English
+    `watch ${seriesTitle} season ${seasonNum} episode ${episodeNum}`,
+    `stream ${seriesTitle} s${seasonNum}e${episodeNum} free`,
+    `${seriesTitle} online free english subtitles`,
+    `${seriesTitle} full episode 1080p`,
+    // Spanish
+    `ver ${seriesTitle} capitulo ${episodeNum} temporada ${seasonNum} online gratis`,
+    `${seriesTitle} temp ${seasonNum} cap ${episodeNum} español latino`,
+    // French
+    `regarder ${seriesTitle} saison ${seasonNum} episode ${episodeNum} streaming vf`,
+    // Portuguese
+    `assistir ${seriesTitle} temporada ${seasonNum} episodio ${episodeNum} dublado`,
+    "streamflix",
+  ];
+
   return {
     title: pageTitle,
     description,
-    keywords: [
-      `watch ${seriesTitle} season ${seasonNum} episode ${episodeNum}`,
-      `stream ${seriesTitle} s${seasonNum}e${episodeNum} free`,
-      `${seriesTitle} online free english subtitles`,
-      `${seriesTitle} full episode 1080p`,
-      "streamflix",
-    ].join(", "),
+    keywords: multiLangKeywords.join(", "),
     openGraph: {
       title: pageTitle,
       description,
@@ -82,6 +92,8 @@ export async function generateMetadata({ params }: EpisodePageProps): Promise<Me
       siteName: "StreamFlix",
       type: "video.episode",
       images: [{ url: image, width: 1280, height: 720, alt: pageTitle }],
+      locale: "en_US",
+      alternateLocale: ["es_ES", "es_MX", "fr_FR", "pt_BR", "de_DE"],
     },
     twitter: {
       card: "summary_large_image",
@@ -137,6 +149,12 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
         "@id": `${canonicalUrl}#episode`,
         url: canonicalUrl,
         name: `${seriesTitle} S${seasonNum}E${episodeNum} - ${epTitle}`,
+        alternateName: [
+          `Ver ${seriesTitle} Temporada ${seasonNum} Capitulo ${episodeNum} Español Latino`,
+          `Regarder ${seriesTitle} Saison ${seasonNum} Episode ${episodeNum} VF`,
+          `Assistir ${seriesTitle} T${seasonNum}E${episodeNum} Dublado`,
+        ],
+        inLanguage: ["en", "es", "fr", "pt", "de"],
         description: epInfo?.overview || `Watch ${seriesTitle} season ${seasonNum} episode ${episodeNum} online free on StreamFlix.`,
         episodeNumber: episodeNum,
         seasonNumber: seasonNum,
@@ -155,7 +173,9 @@ export default async function EpisodePage({ params }: EpisodePageProps) {
         "@type": "VideoObject",
         "@id": `${canonicalUrl}#video`,
         name: `Watch ${seriesTitle} Season ${seasonNum} Episode ${episodeNum}`,
-        description: epInfo?.overview || `Stream ${seriesTitle} S${seasonNum}E${episodeNum} online free in HD.`,
+        description: epInfo?.overview || `Stream ${seriesTitle} S${seasonNum}E${episodeNum} online free in HD with multiple subtitles.`,
+        inLanguage: ["en", "es", "fr", "pt", "de"],
+        subtitleLanguage: ["English", "Spanish", "French", "Portuguese", "German"],
         thumbnailUrl: epInfo?.still_path
           ? `https://image.tmdb.org/t/p/w780${epInfo.still_path}`
           : `${siteUrl}/og-image.jpg`,

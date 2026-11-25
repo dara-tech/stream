@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { SiteSettings } from "@/models/SiteSettings";
 import { TMDB_CONFIG } from "@/config/tmdb";
 import { postMovieToTumblr } from "@/lib/tumblr";
+import { submitToIndexNow } from "@/services/indexnow.service";
 
 export interface TMDBMovieItem {
   id: number;
@@ -281,6 +282,16 @@ export async function broadcastNextMovie(): Promise<{
   console.log(
     `[Server Scheduler] Auto-Broadcasted "${movie.title}" (${year}) to ${succeededCount} channel(s) at ${new Date().toISOString()}`
   );
+
+  // Auto-submit URL to IndexNow for instant search engine indexing (Bing, Yahoo, DuckDuckGo)
+  try {
+    const indexNowRes = await submitToIndexNow([streamLink], siteUrl);
+    if (indexNowRes.success) {
+      console.log(`[IndexNow] Instant search index notification sent for: ${streamLink}`);
+    }
+  } catch (err: any) {
+    console.warn(`[IndexNow] Notice: ${err?.message || err}`);
+  }
 
   return {
     success: true,

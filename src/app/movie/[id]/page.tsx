@@ -123,7 +123,7 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
   const pageTitle = `Watch ${title} (${year}) Full Movie Online Free in HD | StreamFlix`;
   const description =
     movie.overview?.slice(0, 200) ||
-    `Stream ${title} (${year}) full movie online for free in Ultra HD/4K with English subtitles and multiple high-speed servers. No sign up required on StreamFlix.`;
+    `Stream ${title} (${year}) full movie online for free in Ultra HD/4K with English, Spanish & French subtitles and multiple servers. No sign up required on StreamFlix.`;
 
   const image = movie.backdrop_path
     ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
@@ -131,18 +131,37 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
     ? `https://image.tmdb.org/t/p/w780${movie.poster_path}`
     : `${siteUrl}/og-image.jpg`;
 
+  // Multi-Language high-traffic search terms (English, Spanish, French, Portuguese, German)
+  const multiLangKeywords = [
+    // English
+    `watch ${title} online free`,
+    `stream ${title} full movie`,
+    `${title} ${year} hd`,
+    `${title} english subtitles`,
+    `${title} free streaming no sign up`,
+    // Spanish (LatAm & Spain)
+    `ver ${title} online gratis`,
+    `ver ${title} pelicula completa en español latino`,
+    `${title} pelicula completa hd`,
+    `${title} subtitulada online gratis`,
+    // French (VF & VOSTFR)
+    `regarder ${title} streaming vf gratuit`,
+    `${title} film complet en francais`,
+    `${title} streaming vostfr`,
+    // Portuguese (Brazil)
+    `assistir ${title} online dublado gratis`,
+    `${title} filme completo legendado`,
+    // German & Italian
+    `${title} ganzer film deutsch`,
+    `${title} film streaming ita`,
+    "streamflix",
+    "watch movies online free",
+  ];
+
   return {
     title: pageTitle,
     description,
-    keywords: [
-      `watch ${title} online free`,
-      `stream ${title} full movie`,
-      `${title} ${year} hd`,
-      `${title} free streaming`,
-      `${title} english subtitles`,
-      "streamflix",
-      "watch movies online free",
-    ].join(", "),
+    keywords: multiLangKeywords.join(", "),
     openGraph: {
       title: pageTitle,
       description,
@@ -158,6 +177,7 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
         },
       ],
       locale: "en_US",
+      alternateLocale: ["es_ES", "es_MX", "fr_FR", "pt_BR", "de_DE", "it_IT"],
     },
     twitter: {
       card: "summary_large_image",
@@ -220,6 +240,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
         "@id": `${canonicalUrl}#movie`,
         url: canonicalUrl,
         name: title,
+        alternateName: [
+          `Ver ${title} Online Gratis en Español Latino`,
+          `Regarder ${title} Streaming VF Gratuit`,
+          `Assistir ${title} Filme Completo Dublado Grátis`,
+          `${title} Ganzer Film Deutsch Kostenlos`,
+          `Watch ${title} Full Movie Online Free`,
+        ],
+        inLanguage: ["en", "es", "fr", "pt", "de", "it"],
         description: movie.overview || `Watch ${title} full movie online free in HD on StreamFlix.`,
         image: image,
         datePublished: movie.release_date || undefined,
@@ -259,7 +287,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
         name: `Watch ${title} (${year}) Full Movie Online Free`,
         description:
           movie.overview ||
-          `Stream ${title} full movie online in HD and 4K with English subtitles.`,
+          `Stream ${title} full movie online in HD and 4K with English, Spanish, and French subtitles.`,
+        inLanguage: ["en", "es", "fr", "pt", "de", "it"],
+        subtitleLanguage: ["English", "Spanish", "French", "Portuguese", "German", "Italian"],
         thumbnailUrl: [image],
         uploadDate: movie.release_date
           ? new Date(movie.release_date).toISOString()
